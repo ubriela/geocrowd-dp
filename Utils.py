@@ -2,6 +2,7 @@ from collections import defaultdict
 import math
 import numpy as np
 from Params import Params
+import bisect
 
 def euclideanToRadian(radian):
     """
@@ -39,7 +40,6 @@ def distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     d = R * c
     return d
-
 # print (distance(34.020412, -118.289936, 34.021969, -118.279983))
 
 """
@@ -80,6 +80,22 @@ def radixSortPassengers(passengers, idx):
             passengers.extend(bucket)
             del bucket[:]
     return passengers
+
+def RadiusEps2Str(radius, eps):
+    return "r" + str(radius) + "_e" + str(eps)
+
+def getParameterizedFile(radius, eps):
+    return "output/prob/" + RadiusEps2Str(radius, eps)
+
+"""
+Compute range of a distance
+"""
+def dist_range(d_prime, step):
+    d_prime = min(Params.max_dist, d_prime) # making sure d_prime is not out of simulated range
+    return math.ceil(d_prime / step)*step
+
+def cumulative_prob(distances, d_reachable):
+    return bisect.bisect_left(distances, d_reachable) / len(distances) if distances else 0
 
 # str = """
 #         20121101001734

@@ -8,29 +8,44 @@ import numpy as np
 from collections import defaultdict, Counter
 from Params import Params
 
+def flowDict2Matches(flowDict):
+    """
+    Create a list of worker-task matches from flow_dict
+    :param flowDict:
+    :return:
+    """
+    matches = []
+    for wid in flowDict.keys():
+        if wid != "s":
+            for tid in flowDict[wid].keys():
+                if tid != "d":
+                    if flowDict[wid][tid] == 1:
+                        matches.append((tid, wid))
+    return matches
+
 """
 Counting the number of satisfiable matches, which have worker-task distance smaller than a reachable distance
 """
 def satisfiableMatches(matches, wLoc, tLoc, reachableDist):
     c = defaultdict(list)
     count = 0
+    total_travel_dist = 0
     for tid, wid in matches:
         c[wid].append(tid)
 
     for wid, taskSet in c.items():
         for tid in taskSet:
             # any satisfiable worker-task --> break
-            if Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1]) <= reachableDist:
+            dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1])
+            if dist <= reachableDist:
                 count += 1
+                total_travel_dist += dist
                 break
-    return count
+    return count, total_travel_dist/count
 
-"""
-Add noise to worker or task list
-"""
 def perturbedData(wtList, p, dp):
     """
-
+    Add noise to worker or task list
     :param wtList: worker or task list [(lat, lon, id), ...]
     :param p: parameters
     :param dp: differential privacy object
@@ -57,12 +72,9 @@ def perturbedData(wtList, p, dp):
 # print (DG.neighbors(0))
 # print(nx.maximum_flow_value(DG, "s", 3))
 
-"""
-Create max-flow from dict
-"""
-def maxFlowValue(workers, taskids, b=1):
+def createDG(workers, taskids, b=1):
     """
-    Compute max-flow between source s and destination d
+    Create directed graph between worker nodes and task nodes
     :param workers:
     :param taskids:
     :param b:
@@ -81,15 +93,41 @@ def maxFlowValue(workers, taskids, b=1):
     for wid, taskSet in workers.items():
         for tid in taskSet:
             DG.add_edge(wid, tid, capacity=1)
+    return DG
 
+"""
+Compute max-flow from dict
+"""
+def maxFlowValue(workers, taskids, b=1):
+    """
+    Compute max-flow between source s and destination d
+    :param workers:
+    :param taskids:
+    :param b:
+    :return:
+    """
+    DG = createDG(workers, taskids, b)
     return nx.maximum_flow_value(DG, "s", "d")
+
+"""
+Compute max-flow from dict
+"""
+def maxFlow(workers, taskids, b=1):
+    """
+    Compute max-flow between source s and destination d
+    :param workers:
+    :param taskids:
+    :param b:
+    :return:
+    """
+    DG = createDG(workers, taskids, b)
+    return nx.maximum_flow(DG, "s", "d")
 
 """
 Sample workers and tasks data
 """
 def sampleWorkersTasks(workerFile, taskFile, wCount, tCount):
     """
-
     :param workerFile:
     :param taskFile:
     :param wCount: worker count
@@ -121,15 +159,13 @@ def sampleWorkersTasks(workerFile, taskFile, wCount, tCount):
     task_file.close()
     return wList, taskList, wLoc, tLoc
 
-# print (sampleWorkersTasks("./dataset/geolife/vehicles.txt", "./dataset/geolife/passengers.txt", 10, 5))
-
+# print (sampleWorkersTasks("./dataset/tdrive/vehicles.txt", "./dataset/tdrive/passengers.txt", 10, 5))
 
 """
 Crete bipartite graph from workers and tasks list
 """
 def createBipartiteGraph(wList, tList, reachableDist):
     """
-
     :param wList: array of workers
     :param tList: array of tasks
     :param reachableDist: in meters
@@ -147,16 +183,16 @@ def createBipartiteGraph(wList, tList, reachableDist):
                 workers[wid].add(tid)
     return workers
 
-# wList, tList = sampleWorkersTasks("./dataset/geolife/vehicles.txt", "./dataset/geolife/passengers.txt", 1000, 1000)
+# wList, tList = sampleWorkersTasks("./dataset/tdrive/vehicles.txt", "./dataset/tdrive/passengers.txt", 1000, 1000)
 # print (createBipartiteGraph(wList, tList, 1000))
 
 """
 Implementation of Ranking algorithm for online bipartite matching.
+
 Citation: Karp et al. An Optimal Algorithm for On-line Bipartite Matching
 """
-def rankingAlgo(orgWorkers, taskids):
+def ranking(orgWorkers, taskids):
     """
-
     :param orgWorkers: map each workerid to a list of nearby tasks
     :param taskids: list of taskids arriving in order
     :return: a list matching pairs
@@ -203,12 +239,234 @@ def rankingAlgo(orgWorkers, taskids):
 # print (rankingAlgo(workers, taskids))
 
 """
+Modify ranking algorithm such that each worker is selected by the highest reachable probability rather than
+the highest random rank. This technique not only increases the number of performed tasks but also reduces the
+travel distance.
+"""
+def rankingByReachableProb(orgWorkers, taskids, wLoc, tLoc, reachableProb):
+    """
+    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param taskids: list of taskids arriving in order
+    :return: a list matching pairs
+    """
+    matches = []
+    workers = copy.deepcopy(orgWorkers)
+    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+
+    # random permutation of workers' ranks
+    randomRanks = list(range(len(workers)))
+    random.shuffle(randomRanks)
+
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            if len(eligibleWids) > 0:
+                # find the worker of highest probability of reachability
+                highestRankWid = max(eligibleWids, key=lambda w:reachableProb[Utils.dist_range(
+                    Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[w][0], wLoc[w][1]), Params.step
+                )])
+                matches.append((tid, highestRankWid))
+
+                # affected tasks
+                affectedTids = workers[highestRankWid]
+
+                # delete highestRankWid from workers, tid from tasks
+                del workers[highestRankWid]
+                del tasks[tid]
+
+                for _tid in affectedTids:
+                    if _tid != tid:
+                        tasks[_tid].discard(highestRankWid)
+                        if len(tasks[_tid]) == 0:
+                            del tasks[_tid]
+
+    return matches
+
+"""
+Modify ranking algorithm such that in each iteration task is sent to a matched worker,
+the worker responses to the requester if the task is reachable. Otherwise, the task will be sent
+to the next matched worker. This stragegy helps to increase the number of performed tasks.
+
+Note: We assume that workers would accept their matched tasks as long as the tasks are reachable.
+"""
+def rankingResend(orgWorkers, taskids, wLoc, tLoc, reachableDist):
+    """
+    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param taskids: list of taskids arriving in order
+    :return: a list matching pairs
+    """
+    matches = []
+    workers = copy.deepcopy(orgWorkers)
+    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+
+    # random permutation of workers' ranks
+    randomRanks = list(range(len(workers)))
+    random.shuffle(randomRanks)
+    workerRank = dict([(wid, randomRanks[i]) for i, wid in enumerate(workers.keys())])
+
+    # total disclosure
+    total_disclosure = 0
+    total_travel_dist = 0
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            matched = False # if matched is True, go to the next task
+            while len(eligibleWids) > 0 and not matched:
+                # find the worker of highest rank
+                highestRankWid = max(eligibleWids, key=lambda x:workerRank[x])
+                dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                total_disclosure += 1
+
+                if dist <= reachableDist: # satisfiable match
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += dist
+                    matched = True
+                else:
+                    eligibleWids.remove(highestRankWid)
+
+                if matched:
+                    # affected tasks
+                    affectedTids = workers[highestRankWid]
+
+                    # delete highestRankWid from workers, tid from tasks
+                    del workers[highestRankWid]
+                    del tasks[tid]
+
+                    for _tid in affectedTids:
+                        if _tid != tid:
+                            tasks[_tid].discard(highestRankWid)
+                            if len(tasks[_tid]) == 0:
+                                del tasks[_tid]
+
+    matched_count = len(matches)
+    extra_disclosure = total_disclosure - matched_count
+    average_travel_dist = total_travel_dist/matched_count
+    return matched_count, extra_disclosure, average_travel_dist
+
+"""
+Modify ranking algorithm that considers both reachable probability and resend strategy.
+"""
+def rankingByReachableProbResend(orgWorkers, taskids, wLoc, tLoc, reachableProb, reachableDist):
+    """
+    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param taskids: list of taskids arriving in order
+    :return: a list matching pairs
+    """
+    matches = []
+    workers = copy.deepcopy(orgWorkers)
+    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+
+    # random permutation of workers' ranks
+    randomRanks = list(range(len(workers)))
+    random.shuffle(randomRanks)
+
+    # total disclosure
+    total_disclosure = 0
+    total_travel_dist = 0
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            matched = False # if matched is True, go to the next task
+            while len(eligibleWids) > 0 and not matched:
+                # find the worker of highest probability of reachability
+                highestRankWid = max(eligibleWids, key=lambda w:reachableProb[Utils.dist_range(
+                    Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[w][0], wLoc[w][1]), Params.step
+                )])
+                dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                total_disclosure += 1
+
+                if dist <= reachableDist: # satisfiable match
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += dist
+                    matched = True
+                else:
+                    eligibleWids.remove(highestRankWid)
+
+                if matched:
+                    # affected tasks
+                    affectedTids = workers[highestRankWid]
+
+                    # delete highestRankWid from workers, tid from tasks
+                    del workers[highestRankWid]
+                    del tasks[tid]
+
+                    for _tid in affectedTids:
+                        if _tid != tid:
+                            tasks[_tid].discard(highestRankWid)
+                            if len(tasks[_tid]) == 0:
+                                del tasks[_tid]
+
+    matched_count = len(matches)
+    extra_disclosure = total_disclosure - matched_count
+    average_travel_dist = total_travel_dist/matched_count
+    return matched_count, extra_disclosure, average_travel_dist
+
+"""
+Modify ranking algorithm that considers reachable probability, resend strategy and worker's acceptance policy.
+The policy is that a worker can reject a task without knowing the task location. This helps to decrease the amount
+of extra disclosure.
+"""
+def rankingByReachableProbResend(orgWorkers, taskids, wLoc, tLoc, reachableProb, reachableDist):
+    """
+    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param taskids: list of taskids arriving in order
+    :return: a list matching pairs
+    """
+    matches = []
+    workers = copy.deepcopy(orgWorkers)
+    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+
+    # random permutation of workers' ranks
+    randomRanks = list(range(len(workers)))
+    random.shuffle(randomRanks)
+
+    # total disclosure
+    total_disclosure = 0
+    total_travel_dist = 0
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            matched = False # if matched is True, go to the next task
+            while len(eligibleWids) > 0 and not matched:
+                # find the worker of highest probability of reachability
+                highestRankWid = max(eligibleWids, key=lambda w:reachableProb[Utils.dist_range(
+                    Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[w][0], wLoc[w][1]), Params.step
+                )])
+                dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                total_disclosure += 1
+
+                if dist <= reachableDist: # satisfiable match
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += dist
+                    matched = True
+                else:
+                    eligibleWids.remove(highestRankWid)
+
+                if matched:
+                    # affected tasks
+                    affectedTids = workers[highestRankWid]
+
+                    # delete highestRankWid from workers, tid from tasks
+                    del workers[highestRankWid]
+                    del tasks[tid]
+
+                    for _tid in affectedTids:
+                        if _tid != tid:
+                            tasks[_tid].discard(highestRankWid)
+                            if len(tasks[_tid]) == 0:
+                                del tasks[_tid]
+
+    matched_count = len(matches)
+    extra_disclosure = total_disclosure - matched_count
+    average_travel_dist = total_travel_dist/matched_count
+    return matched_count, extra_disclosure, average_travel_dist
+
+"""
 Implementation of balance algorithm for online b-matching.
 Citation: Kalyanasundaram and Kruhs. An optimal deterministic algorithm for online b-matching
 """
-def balanceAlgo(orgWorkers, taskids, b):
+def balance(orgWorkers, taskids, b):
     """
-
     :param orgWorkers: map each workerid to a list of nearby tasks
     :param taskids: list of taskids arriving in order
     :param b: at most b tasks can be matched to one worker

@@ -2,8 +2,9 @@ import glob
 import csv
 from Utils import radixSortPassengers
 
+# compute MBR of dataset
 x_min, y_min, x_max, y_max = 90, 180, -90, -180
-with open("dataset/geolife/passengers.txt") as worker_file:
+with open("dataset/tdrive/passengers.txt") as worker_file:
     reader = csv.reader(worker_file, delimiter=',')
     for row in reader:
         x_min = min(float(row[0]), x_min)
@@ -13,8 +14,8 @@ with open("dataset/geolife/passengers.txt") as worker_file:
 print (x_min, y_min, x_max, y_max)
 
 
+# read data from file to vehicles and passengers
 vehicles, passengers = {}, []
-
 fileCount = 0
 for file in glob.glob("dataset/20121101/*.txt"):
     with open(file) as f_in:
@@ -39,7 +40,7 @@ for file in glob.glob("dataset/20121101/*.txt"):
         print ("Processed " + str(fileCount) + " files\t", str(len(vehicles)) + " vehicles\t", str(len(passengers)) + " vehicles")
 
 # write vehicles to file
-with open("dataset/geolife/vehicles.txt", "w") as csv_file:
+with open("dataset/tdrive/vehicles.txt", "w") as csv_file:
     writer = csv.writer(csv_file)
     for vid, loc in vehicles.items():
        writer.writerow([loc[0], loc[1], vid])
@@ -48,7 +49,7 @@ with open("dataset/geolife/vehicles.txt", "w") as csv_file:
 passengers = radixSortPassengers(passengers, 2)
 
 # write passengers to file
-with open("dataset/geolife/passengers.txt", "w") as csv_file:
+with open("dataset/tdrive/passengers.txt", "w") as csv_file:
     writer = csv.writer(csv_file)
     for tuple in passengers:
         writer.writerow([tuple[0], tuple[1], int(tuple[2])])
