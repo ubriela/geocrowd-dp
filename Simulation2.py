@@ -69,25 +69,25 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
     We want to compute a map from d'-range to values in actual domain.
     For each d'-range, we can compute the PDF of d values.
     """
-    d_prime_range_to_d_values = defaultdict(list)  # (d'-ranges, d values)
-    # we want to sorted during constructing this list due to performance
-    reachable_d_to_d_primes = defaultdict(list) # key is reachable distance d
-    reachable_d_prime_to_d_values = defaultdict(list) # key is reachable distance d_prime
+    dict = defaultdict(list)  # (d'-ranges, d values)
+
+    reachable_d_to_d_primes = defaultdict(list) # we want to sorted during constructing this list due to performance
+    reachable_d_prime_to_d_values = defaultdict(list)  # key is reachable distance d_prime
     for i in range(samples):
+
         # First point
-        lat1, lon1 = random.uniform(minLat, maxLat), random.uniform(minLon, maxLon)
-        noisyLat1, noisyLon1 = dp.addPolarNoise(p.eps, p.radius, (lat1, lon1))
+        lat1, lon1 = (minLat+maxLat)/2, (minLon + maxLon)/2  # Fix one location
 
         # Second point
         lat2, lon2 = random.uniform(minLat, maxLat), random.uniform(minLon, maxLon)
         noisyLat2, noisyLon2 = dp.addPolarNoise(p.eps, p.radius, (lat2, lon2))
 
         d = Utils.distance(lat1, lon1, lat2, lon2)
-        d_prime = Utils.distance(noisyLat1, noisyLon1, noisyLat2, noisyLon2)
+        d_prime = Utils.distance(lat1, lon1, noisyLat2, noisyLon2)
 
         # d_prime range
         d_prime_range = Utils.dist_range(d_prime, step)
-        d_prime_range_to_d_values[d_prime_range].append(d)
+        dict[d_prime_range].append(d)
 
         # insert d_prime values of all reachable pairs
         for reachable_dist in reachable_range:
@@ -96,25 +96,24 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
             if d_prime <= reachable_dist:
                 bisect.insort(reachable_d_prime_to_d_values[reachable_dist], d)
 
-
-    # print ("\n".join(map(str, d_prime_range_to_d_values[1000.0])))
+    # print ("\n".join(map(str, dict[1000.0])))
 
     """
     Given worker-task distance in the perturbed domain d'=dist(w’,t'),
-    compute the reachable probability in the actual domain: P_reachable = Pr(dist(w, t) < d_reachable).
+    compute the probability they are reachable in the actual domain: P_reachable = Pr(dist(w, t) < d_reachable).
     """
     reachable_prob = defaultdict(list)
     for d_prime in d_prime_values:
         d_prime_range = Utils.dist_range(d_prime, step)
-        d_values = d_prime_range_to_d_values[d_prime_range] # actual d_values that has noisy distance in a certain range.
-        d_values.sort() # Sort values in map
+        distances = dict[d_prime_range]
+        distances.sort() # Sort values in map
         for reachable_dist in reachable_range:
-            reachable_prob[reachable_dist].append((d_prime, Utils.cumulative_prob(d_values, reachable_dist)))
+            reachable_prob[reachable_dist].append((d_prime, Utils.cumulative_prob(distances, reachable_dist)))
 
     """
     Compute the upper-bound matching distance match_dist(w’,t') in the perturbed domain
     (that SC-server would match a worker to a task) such that with high probability
-    a reachable pair in the actual domain (dist(w, t) < d_reachable) are matched in the noisy domain: P_recall.
+    a reachable pair in the actual domain (dist(w, t) < d_reachable) are matched in the noisy domain: P_coverage.
     """
     precision_recall_prob = defaultdict(list)
     for d_match in d_matches_values:
@@ -126,20 +125,20 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
     return reachable_prob, precision_recall_prob
 
 samples = 100000  # sample size
-d_prime_values = range(100, Params.max_dist + 1, 100) # range of noisy distance
-d_matches_values = range(100, Params.max_dist + 1, 100) # range of matching distance
+d_prime_values = range(100, Params.max_dist + 1, 100)
+d_matches_values = range(100, Params.max_dist + 1, 100)
 def precomputeProbability():
     """
     Precompute probability of reachability given epsilon
     :param eps:
     :return:
     """
-    for radius in [700.0]:
-        for eps in [0.7]:
+    for radius in [100.0, 400.0, 700.0, 1000.0]:
+        for eps in [0.1, 0.4, 0.7, 1.0]:
             print ("radius/eps: ", radius, eps)
             outputFile = Utils.getParameterizedFile(radius, eps)
-            with open(outputFile + "_reachability.txt", "w") as f_reachable, \
-                    open(outputFile + "_precision_recall.txt", "w") as f_precision_recall:
+            with open(outputFile + "_reachability_2.txt", "w") as f_reachable, \
+                    open(outputFile + "_precision_recall_2.txt", "w") as f_coverage:
                 lines = ""
                 reachable_prob, precision_recall_prob = probs_from_sampling(samples, Params.step, d_prime_values, d_matches_values)
                 for reachable_dist in reachable_range:
@@ -152,9 +151,9 @@ def precomputeProbability():
                     for d_match, precision, recall in precision_recall_prob[reachable_dist]:
                         lines += str(reachable_dist) + "\t" + str(d_match) + "\t" + str(precision) + "\t" + str(recall) + "\n"
 
-                f_precision_recall.write(lines)
+                f_coverage.write(lines)
             f_reachable.close()
-            f_precision_recall.close()
+            f_coverage.close()
 
 precomputeProbability()
 
@@ -170,8 +169,9 @@ def getProbability(radius_list, eps_list, suffix):
         for eps in eps_list:
             inputFile = Utils.getParameterizedFile(radius, eps) + "_" + suffix + ".txt"
             data = np.loadtxt(inputFile, dtype=float, delimiter="\t")
-            dict[Utils.RadiusEps2Str(radius, eps)] = OrderedDict({str(int(kv[0])) + ":" + str(int(kv[1])) : kv[2] for kv in data[:,:]})
+            dict[Utils.RadiusEps2Str(radius, eps)] = OrderedDict(
+                {str(int(kv[0])) + ":" + str(int(kv[1])): kv[2] for kv in data[:, :]})
     return dict
 
-# for k, v in getProbability([400.0], [0.4], "reachable")[Utils.RadiusEps2Str(400.0, 0.4)].items():
+# for k, v in getProbability([400.0], [0.4], "reachable2")[Utils.RadiusEps2Str(400.0, 0.4)].items():
 #     print (k, "\t", v)

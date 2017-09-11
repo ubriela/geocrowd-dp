@@ -3,6 +3,28 @@ import math
 import numpy as np
 from Params import Params
 import bisect
+import random
+
+
+"""
+Return a list of reachable distances, e.g., [1000, 1100,...,5000]
+"""
+def reachableDistance():
+    return np.arange(Params.reachableDistRange[0], Params.reachableDistRange[1] + 1, Params.reachableDistStep)
+
+"""
+Rounding a reachable distance
+"""
+def round_reachable_dist(reachable_distance):
+    sorted_distances = reachableDistance()
+    return int(sorted_distances[bisect.bisect_left(sorted_distances, reachable_distance)])
+
+"""
+Generate uniformly and randomly reachable distance
+"""
+def randomReachableDist(reachableDistRange, seed):
+    np.random.seed(seed)
+    return np.random.uniform(reachableDistRange[0], reachableDistRange[1])
 
 def euclideanToRadian(radian):
     """
@@ -94,8 +116,22 @@ def dist_range(d_prime, step):
     d_prime = min(Params.max_dist, d_prime) # making sure d_prime is not out of simulated range
     return math.ceil(d_prime / step)*step
 
-def cumulative_prob(distances, d_reachable):
-    return bisect.bisect_left(distances, d_reachable) / len(distances) if distances else 0
+"""
+Given a set of 'distances', calculate the ratio of distances that are smaller than 'd_threshold'.
+
+"""
+def cumulative_prob(distances, d_threshold):
+    return bisect.bisect_left(distances, d_threshold) / len(distances) if distances else 0
+
+"""
+Compute reachable distance such the coverage probability is greater or equal to a threshold
+"""
+def reachableNoisyDist(sortedPairs, coverageThreshold):
+    idx = bisect.bisect_left(list(sortedPairs.values()), coverageThreshold)
+    return list(sortedPairs.keys())[min(idx, len(sortedPairs) - 1)]
+
+# sortedPairs = [(1,3),(2,5),(3,6),(4,9),(5,9)]
+# print (reachableNoisyDist(sortedPairs, 5))
 
 # str = """
 #         20121101001734

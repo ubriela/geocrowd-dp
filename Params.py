@@ -15,29 +15,34 @@ class Params(object):
     ONE_KM = 0.0089982311916  # convert km to degree
     step = 100  # step of d_prime range
     max_dist = 11900 # max distance used in simulation
-
+    reachableDistStep = 100.0
+    reachableDistRange = (100.0, 12000.0)
     def __init__(self, seed):
         self.workerFile = ""
         self.taskFile = ""
 
+        self.seed = seed # used in generating noisy counts
+
         """
         Privacy parameters
         """
-        self.radius = 500.0  # default unit is meters
-        self.eps = 1.0  # epsilon
-        self.confidence = 0.95
+        self.radius = 700.0  # default unit is meters
+        self.eps = 0.7  # epsilon
 
         """
         Geocrowd parameters
         """
         self.workerCount = 500
         self.taskCount = 500
-        self.reachableDist = 2000.0
-
-        self.seed = seed # used in generating noisy counts
 
         """
-        Parameters of elastric metric
+        Heuristic parameters
+        """
+        self.acceptanceThreshold = 0.4
+        self.coverageThreshold = 0.90
+
+        """
+        Parameters of elastric metric (not used)
         """
         self.m = 1000 # granularity of equal-size grid cell
 
