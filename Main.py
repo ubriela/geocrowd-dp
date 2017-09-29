@@ -1,7 +1,7 @@
 __author__ = 'ubriela'
 import math
 import logging
-import time
+from time import time
 import sys
 import random
 import numpy as np
@@ -23,317 +23,529 @@ eps_list = [0.1, 0.4, 0.7, 1.0]
 # radius_list = [700.0]
 radius_list = [100.0, 400.0, 700.0, 1000.0]
 
-at_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] # acceptance threshold.
-ct_list = [0.6,0.7,0.8,0.9] # coverge threshold.
+U2U_threshold_list = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
+U2E_threshold_list = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
 #
-def evalOnline(p, wList, tList, wLoc, tLoc, reach_dist_map):
+def eval(p, wList, tList, wLoc, tLoc, reachable_distance_map):
     exp_name = ""
     logging.info(exp_name)
 
-    res_cube = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_nearest_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_nearest_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_nearest_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_nearest_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
-    res_cube_reachable = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_random_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_random_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_random_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_rank_random_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
-    res_cube_resend = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_resend_disclosure = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_resend_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachable_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachable_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
-    res_cube_reachable_resend = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_disclosure = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_precision = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_recall = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_f1score = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_random_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_random_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_random_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_random_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
-    res_cube_reachable_resend_acceptance = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_acceptance_disclosure = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_acceptance_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_reachable_resend_acceptance_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_nearest_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_nearest_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_nearest_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_resend_nearest_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
-    reachableProbDict = Simulation.getProbability(radius_list, eps_list, "reachable") # U2U stage.
-    reachableProbDict2 = Simulation2.getProbability(radius_list, eps_list, "reachable2") # U2E stage.
-    # TODO: consider expanded stragegy.
-    # coverageProbDict = Simulation.getProbability(radius_list, eps_list, "coverage")
-    for expanded in [False]:
+    res_cube_reachable_resend_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachable_resend_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachable_resend_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+
+    res_cube_precision = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_recall = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_CAN = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+
+    res_cube_reachability_empirical_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_empirical_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_empirical_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_empirical_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_empirical_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+
+    res_cube_reachability_analytical_NAT = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_analytical_false_hits = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_analytical_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_analytical_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_reachability_analytical_NNW = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+
+    reachabilityMapU2U = Simulation.getProbability(radius_list, eps_list, "reachability") # U2U stage.
+    reachabilityMapU2E = Simulation2.getProbability(radius_list, eps_list, "reachability_2") # U2E stage.
+    for U2UOpt in [True, False]:
         for j in range(len(seed_list)):
             for i in range(len(eps_list)):
                 for k in range(len(radius_list)):
                     p.seed = seed_list[j]
                     p.eps = eps_list[i]
                     p.radius = radius_list[k]
+                    print ("seed/eps/radius", p.seed, p.eps, p.radius)
                     dp = Differential(p.seed)
 
-                    # perturb locations of workers and tasks using Geo-I.
+                    # perturb locations of candidate_workers and tasks using Geo-I.
                     perturbedWList = Geocrowd.perturbedData(wList, p, dp)
                     perturbedTList = Geocrowd.perturbedData(tList, p, dp)
-
-                    """
-                    precision/recall during U2U
-                    """
-
-                    # Obtain workerMap, taskMap.
-                    # wDict = dict([(id, (lat, lon)) for lat, lon, id in wList])
-                    # tDict = dict([(id, (lat, lon)) for lat, lon, id in tList])
-
-                    # for each task, find a set of reachable workers
-                    precisions, recalls = [], []
-                    for tNoisyLat, tNoisyLon, tid in perturbedTList: # [lat, lon, id]
-                        selected_workers, reachable_workers, reachable_selected_workers = 0, 0, 0
-                        for wNoisyLat, wNoisyLon, wid in perturbedWList:
-                            noisy_dist = Utils.distance(wNoisyLat, wNoisyLon, tNoisyLat, tNoisyLon)
-                            actual_dist = Utils.distance(wLoc[wid][0], wLoc[wid][1], tLoc[tid][0], tLoc[tid][1])
-                            if noisy_dist <= reach_dist_map[wid]:
-                                selected_workers += 1 # noisy domain
-                            if actual_dist <= reach_dist_map[wid]:
-                                reachable_workers += 1 # actual domain
-                            if noisy_dist <= reach_dist_map[wid] and actual_dist <= reach_dist_map[wid]:
-                                reachable_selected_workers += 1
-                        if selected_workers > 0:
-                            precisions.append(reachable_selected_workers/selected_workers)
-                        if reachable_workers > 0:
-                            recalls.append(reachable_selected_workers/reachable_workers)
-
-                    mean_precision, mean_recall = np.mean(precisions), np.mean(recalls)
-                    # print ("average precision/recall: ", mean_precision, mean_recall)
-                    mean_f1_score = np.mean([2*(p * r)/(p + r) for p in precisions for r in recalls if p != 0 and r != 0])
 
                     # compute reachable distance such that a matched worker-task pair is
                     # reachable in the actual domain.
                     # coverageProb = coverageProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
-                    if expanded:
-                        # reachableNoisyDist = Utils.reachableNoisyDist(coverageProb, p.coverageThreshold)
-                        exp_name = sys._getframe().f_code.co_name + "_expanded"
+                    reachable_prob_U2U = reachabilityMapU2U[Utils.RadiusEps2Str(p.radius, p.eps)]
+                    reachable_prob_U2E = reachabilityMapU2E[Utils.RadiusEps2Str(p.radius, p.eps)]
+
+                    # for each task, find a set of reachable candidate_workers
+                    candidate_workers = None # tid --> {wid}
+                    if U2UOpt:
+                        exp_name = sys._getframe().f_code.co_name + "_U2UOpt"
+                        candidate_workers = Geocrowd.createBipartiteGraphU2U(perturbedWList, perturbedTList,
+                                                                          reachable_distance_map, reachable_prob_U2U, p)
                     else:
                         exp_name = sys._getframe().f_code.co_name
+                        candidate_workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList,
+                                                                      reachable_distance_map)
+                    """
+                    precision/recall during U2U
+                    """
+                    # wNoisyLoc = dict({wid, (lat, lon)} for lat, lon, wid in perturbedWList) # [lat, lon, id]
+                    # tNoisyLoc = dict({tid, (lat, lon)} for lat, lon, tid in perturbedTList)
 
-                    workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList, reach_dist_map)
+                    precisions, recalls = [], []
+                    for tid, wids in candidate_workers.items():
+                        selected_workers = len(wids)
+                        reachable_workers, reachable_workers_other = 0, 0
+                        for wid in wids:
+                            # noisy_dist = Utils.distance(wNoisyLoc[wid][0], wNoisyLoc[wid][1], tNoisyLoc[tid][0], tNoisyLoc[tid][1])
+                            actual_dist = Utils.distance(wLoc[wid][0], wLoc[wid][1], tLoc[tid][0], tLoc[tid][1])
+                            if actual_dist <= reachable_distance_map[wid]:
+                                reachable_workers += 1  # actual domain
+                            # if noisy_dist <= reachable_distance_map[wid] and actual_dist <= reachable_distance_map[wid]:
+                            #     reachable_selected_workers += 1
+                        # number of reachable workers in total
+                        for wid, loc in wLoc.items():
+                            if wid not in wids:
+                                actual_dist_other = Utils.distance(loc[0], loc[1], tLoc[tid][0], tLoc[tid][1])
+                                if actual_dist_other <= reachable_distance_map[wid]:
+                                    reachable_workers_other += 1  # actual domain
+                        if selected_workers > 0:
+                            precisions.append(float(reachable_workers) / selected_workers)
+                        if reachable_workers > 0 or reachable_workers_other > 0:
+                            recalls.append(float(reachable_workers) / (reachable_workers + reachable_workers_other))
+                    mean_precision, mean_recall, candidate_worker_size = np.mean(precisions), np.mean(recalls), len(candidate_workers)
+                    # print ("average precision/recall: ", mean_precision, mean_recall)
 
-                    # ranking by random rank
-                    matches = Geocrowd.ranking(workers, range(p.taskCount), wLoc, tLoc)
+                    # ranking by nearest neighbor
+                    ranking_nearest_NAT, ranking_nearest_false_hits, ranking_nearest_WTD, ranking_nearest_NNW = \
+                        Geocrowd.rankingNearest(candidate_workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
+
+                    # ranking by nearest neighbor
+                    ranking_random_NAT, ranking_random_false_hits, ranking_random_WTD, ranking_random_NNW = \
+                        Geocrowd.rankingRandom(candidate_workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
 
                     # ranking by reachable probability
-                    reachableProb = reachableProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
-                    matches_reachable = Geocrowd.rankingByReachability(workers, range(p.taskCount), wLoc, tLoc,
-                                                                       reachableProb, reach_dist_map)
+                    matches_reachable = Geocrowd.rankingByReachability(candidate_workers, range(p.taskCount), wLoc, tLoc,
+                                                                       reachable_prob_U2E, reachable_distance_map)
 
-                    # ranking with resend strategy (Baseline)
-                    matches_resend, extra_disclosure, average_travel_dist = \
-                        Geocrowd.rankingResend(workers, range(p.taskCount), wLoc, tLoc, reach_dist_map)
+                    # ranking with resend strategy (Baseline-Random)
+                    resend_random_NAT, resend_random_false_hits, resend_random_WTD, resend_random_NNW = \
+                        Geocrowd.rankingResendRandom(candidate_workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
 
-                    # ranking with both reachable probability and resend strategy (Empirical-Reachability)
-                    matches_reachable_resend, extra_reachable_disclosure, average_reachable_travel_dist = \
-                        Geocrowd.rankingByReachabilityResend(workers, range(p.taskCount), wLoc, tLoc, reachableProb,
-                                                             reach_dist_map)
+                    # ranking with resend strategy (Baseline-Nearest)
+                    resend_nearest_NAT, resend_nearest_false_hits, resend_nearest_WTD, resend_nearest_NNW = \
+                        Geocrowd.rankingResendNearest(candidate_workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
 
-                    # Ranking with reachable probability, resend strategy and worker's acceptance policy (Analytical-Reachability-Threshold)
-                    reachableProb2 = reachableProbDict2[Utils.RadiusEps2Str(p.radius, p.eps)]
-                    matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist, \
-                    average_reachable_acceptance_false_dismissals = \
-                        Geocrowd.rankingByReachabilityResendAcceptance(workers, range(p.taskCount), wLoc, tLoc,
-                                                                       reachableProb, reachableProb2,
-                                                                       reach_dist_map, p.acceptanceThreshold)
-                    # print ("false_dismissals", average_reachable_acceptance_false_dismissals)
+                    # ranking with both reachable probability and resend strategy
+                    reachable_resend_NAT, reachable_resend_false_hits, reachable_resend_WTD = \
+                        Geocrowd.rankingByReachabilityResend(candidate_workers, range(p.taskCount), wLoc, tLoc, reachable_prob_U2E, reachable_distance_map)
 
-                    res_cube[i, j, k], res_cube_travel[i, j, k] = \
-                        Geocrowd.satisfiableMatches(matches, wLoc, tLoc, reach_dist_map)
-                    res_cube_reachable[i, j, k], res_cube_reachable_travel[i, j, k] = \
-                        Geocrowd.satisfiableMatches(matches_reachable, wLoc, tLoc, reach_dist_map)
-                    res_cube_resend[i, j, k], res_cube_resend_disclosure[i, j, k], res_cube_resend_travel[i, j, k] = \
-                        matches_resend, extra_disclosure, average_travel_dist
-                    res_cube_reachable_resend[i, j, k], res_cube_reachable_resend_disclosure[i, j, k], \
-                    res_cube_reachable_resend_travel[i, j, k], res_cube_reachable_resend_f1score[i, j, k], \
-                    res_cube_reachable_resend_precision[i, j, k], res_cube_reachable_resend_recall[i, j, k] = \
-                        matches_reachable_resend, extra_reachable_disclosure, average_reachable_travel_dist, mean_f1_score, mean_precision, mean_recall
-                    res_cube_reachable_resend_acceptance[i, j, k], res_cube_reachable_resend_acceptance_disclosure[i, j, k], \
-                    res_cube_reachable_resend_acceptance_travel[i, j, k], res_cube_reachable_resend_acceptance_false_dismissals[i, j, k] = \
-                        matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist, \
-                        average_reachable_acceptance_false_dismissals
+                    # Ranking with reachable probability, resend strategy and worker's acceptance policy (Reachability-Empirical)
+                    reachability_empirical_NAT, reachability_empirical_false_hits, reachability_empirical_WTD, \
+                    reachability_empirical_false_dismissals, reachability_empirical_NNW = \
+                        Geocrowd.rankingByReachabilityEmpirical(candidate_workers, range(p.taskCount), wLoc, tLoc,
+                                                                reachable_prob_U2E,
+                                                                reachable_distance_map, p.reachabilityThresholdU2E)
 
-        res_summary, res_summary_travel = np.average(res_cube, axis=1), np.average(res_cube_travel, axis=1)
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name, res_summary,
+                    reachability_analytical_NAT, reachability_analytical_false_hits, reachability_analytical_WTD, \
+                    reachability_analytical_false_dismissals, reachability_analytical_NNW = \
+                        Geocrowd.rankingByReachabilityAnalytical(candidate_workers, range(p.taskCount), wLoc, tLoc,
+                                                                reachable_distance_map, p.reachabilityThresholdU2E, p)
+
+                    res_cube_rank_nearest_NAT[i, j, k], res_cube_rank_nearest_false_hits[i, j, k], res_cube_rank_nearest_WTD[i, j, k], \
+                    res_cube_rank_nearest_NNW[i, j, k] = \
+                        ranking_nearest_NAT, ranking_nearest_false_hits, ranking_nearest_WTD, ranking_nearest_NNW
+                    res_cube_rank_random_NAT[i, j, k], res_cube_rank_random_false_hits[i, j, k], res_cube_rank_random_WTD[i, j, k], \
+                    res_cube_rank_random_NNW[i, j, k] = \
+                        ranking_random_NAT, ranking_random_false_hits, ranking_random_WTD, ranking_random_NNW
+                    res_cube_reachable_NAT[i, j, k], res_cube_reachable_WTD[i, j, k] = \
+                        Geocrowd.satisfiableMatches(matches_reachable, wLoc, tLoc, reachable_distance_map)
+                    res_cube_resend_random_NAT[i, j, k], res_cube_resend_random_false_hits[i, j, k], res_cube_resend_random_WTD[i, j, k], \
+                    res_cube_resend_random_NNW[i, j, k]= \
+                        resend_random_NAT, resend_random_false_hits, resend_random_WTD, resend_random_NNW
+                    res_cube_resend_nearest_NAT[i, j, k], res_cube_resend_nearest_false_hits[i, j, k], res_cube_resend_nearest_WTD[i, j, k], \
+                    res_cube_resend_nearest_NNW[i, j, k] = \
+                        resend_nearest_NAT, resend_nearest_false_hits, resend_nearest_WTD, resend_nearest_NNW
+                    res_cube_reachable_resend_NAT[i, j, k], res_cube_reachable_resend_false_hits[i, j, k], \
+                    res_cube_reachable_resend_WTD[i, j, k] = \
+                        reachable_resend_NAT, reachable_resend_false_hits, reachable_resend_WTD
+                    res_cube_reachability_empirical_NAT[i, j, k], res_cube_reachability_empirical_false_hits[i, j, k], \
+                    res_cube_reachability_empirical_WTD[i, j, k], res_cube_reachability_empirical_false_dismissals[i, j, k], \
+                    res_cube_reachability_empirical_NNW[i, j, k] = \
+                        reachability_empirical_NAT, reachability_empirical_false_hits, reachability_empirical_WTD, \
+                        reachability_empirical_false_dismissals, reachability_empirical_NNW
+                    res_cube_reachability_analytical_NAT[i, j, k], res_cube_reachability_analytical_false_hits[i, j, k], \
+                    res_cube_reachability_analytical_WTD[i, j, k], res_cube_reachability_analytical_false_dismissals[i, j, k], \
+                    res_cube_reachability_analytical_NNW[i, j, k] = \
+                        reachability_analytical_NAT, reachability_analytical_false_hits, reachability_analytical_WTD, \
+                        reachability_analytical_false_dismissals, reachability_analytical_NNW
+                    res_cube_precision[i, j, k], res_cube_recall[i, j, k], res_cube_CAN[i, j, k] = mean_precision, mean_recall, candidate_worker_size
+
+        res_summary_rank_nearest_NAT, res_summary_rank_nearest_false_hits, res_summary_rank_nearest_WTD, res_summary_rank_nearest_NNW = \
+            np.average(res_cube_rank_nearest_NAT, axis=1), np.average(res_cube_rank_nearest_false_hits, axis=1), \
+            np.average(res_cube_rank_nearest_WTD, axis=1), np.average(res_cube_rank_nearest_NNW, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_nearest_NAT" , res_summary_rank_nearest_NAT,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_travel", res_summary_travel,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name  + "_rank_nearest_false_hits", res_summary_rank_nearest_false_hits,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_nearest_WTD", res_summary_rank_nearest_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_nearest_NNW", res_summary_rank_nearest_NNW,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
 
-        res_summary_reachable, res_summary_reachable_travel = np.average(res_cube_reachable, axis=1), np.average(
-            res_cube_reachable_travel, axis=1)
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reach", res_summary_reachable,
+        res_summary_rank_random_NAT, res_summary_rank_random_false_hits, res_summary_rank_random_WTD, res_summary_rank_random_NNW = \
+            np.average(res_cube_rank_random_NAT, axis=1), np.average(res_cube_rank_random_false_hits, axis=1), \
+            np.average(res_cube_rank_random_WTD, axis=1), np.average(res_cube_rank_random_NNW, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_random_NAT" , res_summary_rank_random_NAT,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reach_travel", res_summary_reachable_travel,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_random_false_hits", res_summary_rank_random_false_hits,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-
-        res_summary_resend, res_summary_resend_disclosure, res_summary_resend_travel = \
-            np.average(res_cube_resend, axis=1), np.average(res_cube_resend_disclosure, axis=1), \
-            np.average(res_cube_resend_travel, axis=1)
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Baseline", res_summary_resend,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_random_WTD", res_summary_rank_random_WTD,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Baseline_disclosure", res_summary_resend_disclosure,
-                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Baseline_travel", res_summary_resend_travel,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_rank_random_NNW", res_summary_rank_random_NNW,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
 
-        res_summary_reachable_resend, res_summary_reachable_resend_disclosure, res_summary_reachable_resend_travel, res_summary_reachable_resend_f1score, \
-        res_summary_reachable_resend_precision, res_summary_reachable_resend_recall = \
-            np.average(res_cube_reachable_resend, axis=1), np.average(res_cube_reachable_resend_disclosure, axis=1), \
-            np.average(res_cube_reachable_resend_travel, axis=1), np.average(res_cube_reachable_resend_f1score, axis=1), \
-            np.average(res_cube_reachable_resend_precision, axis=1), np.average(res_cube_reachable_resend_recall, axis=1)
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend", res_summary_reachable_resend,
+        res_summary_reachable, res_summary_reachable_WTD = np.average(res_cube_reachable_NAT, axis=1), np.average(
+            res_cube_reachable_WTD, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reach_NAT", res_summary_reachable,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend_disclosure",
-                   res_summary_reachable_resend_disclosure,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reach_WTD", res_summary_reachable_WTD,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend_travel",
-                   res_summary_reachable_resend_travel,
+
+        res_summary_resend_random, res_summary_resend_random_false_hits, res_summary_resend_random_WTD, \
+        res_summary_resend_random_NNW = \
+            np.average(res_cube_resend_random_NAT, axis=1), np.average(res_cube_resend_random_false_hits, axis=1), \
+            np.average(res_cube_resend_random_WTD, axis=1), np.average(res_cube_resend_random_NNW, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineRandom_NAT", res_summary_resend_random,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_f1score",
-                   res_summary_reachable_resend_f1score,
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineRandom_false_hits", res_summary_resend_random_false_hits,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineRandom_WTD", res_summary_resend_random_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineRandom_NNW", res_summary_resend_random_NNW,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+
+        res_summary_resend_nearest, res_summary_resend_nearest_false_hits, res_summary_resend_nearest_WTD, \
+        res_summary_resend_nearest_NNW = \
+            np.average(res_cube_resend_nearest_NAT, axis=1), np.average(res_cube_resend_nearest_false_hits, axis=1), \
+            np.average(res_cube_resend_nearest_WTD, axis=1), np.average(res_cube_resend_nearest_NNW, axis=1),
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineNearest_NAT", res_summary_resend_nearest,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineNearest_false_hits", res_summary_resend_nearest_false_hits,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineNearest_WTD", res_summary_resend_nearest_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_BaselineNearest_NNW", res_summary_resend_nearest_NNW,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+
+        res_summary_reachable_resend, res_summary_reachable_resend_false_hits, res_summary_reachable_resend_WTD = \
+            np.average(res_cube_reachable_resend_NAT, axis=1), np.average(res_cube_reachable_resend_false_hits, axis=1), \
+            np.average(res_cube_reachable_resend_WTD, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend_NAT", res_summary_reachable_resend,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend_false_hits",
+                   res_summary_reachable_resend_false_hits,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_reachresend_WTD",
+                   res_summary_reachable_resend_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+
+        res_summary_reachability_empirical_NAT, res_summary_reachability_empirical_false_hits, res_summary_reachability_empirical_WTD, \
+        res_summary_reachability_empirical_false_dismissals, res_summary_reachability_empirical_NNW = \
+            np.average(res_cube_reachability_empirical_NAT, axis=1), np.average(res_cube_reachability_empirical_false_hits, axis=1), \
+            np.average(res_cube_reachability_empirical_WTD, axis=1), np.average(res_cube_reachability_empirical_false_dismissals, axis=1), \
+            np.average(res_cube_reachability_empirical_NNW, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Empirical_NAT", res_summary_reachability_empirical_NAT,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Empirical_false_hits",
+                   res_summary_reachability_empirical_false_hits,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Empirical_WTD",
+                   res_summary_reachability_empirical_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Empirical_false_dismissals",
+                   res_summary_reachability_empirical_false_dismissals,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Empirical_NNW",
+                   res_summary_reachability_empirical_NNW,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+
+
+        res_summary_reachability_analytical_NAT, res_summary_reachability_analytical_false_hits, res_summary_reachability_analytical_WTD, \
+        res_summary_reachability_analytical_false_dismissals, res_summary_reachability_analytical_NNW = \
+            np.average(res_cube_reachability_empirical_NAT, axis=1), np.average(res_cube_reachability_analytical_false_hits,
+                axis=1), np.average(res_cube_reachability_analytical_WTD, axis=1), np.average(res_cube_reachability_analytical_false_dismissals, axis=1), \
+            np.average(res_cube_reachability_analytical_NNW, axis=1)
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NAT", res_summary_reachability_analytical_NAT,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_hits",
+                   res_summary_reachability_analytical_false_hits,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_WTD",
+                   res_summary_reachability_analytical_WTD,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_dismissals",
+                   res_summary_reachability_analytical_false_dismissals,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NNW",
+                   res_summary_reachability_analytical_NNW,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+
+        res_summary_precision, res_summary_recall, res_summary_CAN = \
+            np.average(res_cube_precision, axis=1), np.average(res_cube_recall, axis=1), np.average(res_cube_CAN, axis=1)
         np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_precision",
-                   res_summary_reachable_resend_precision,
+                   res_summary_precision,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
         np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_recall",
-                   res_summary_reachable_resend_recall,
+                   res_summary_recall,
+                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_CAN",
+                   res_summary_CAN,
                    header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
 
-        res_summary_reachable_resend_acceptance, res_summary_reachable_resend_acceptance_disclosure, res_summary_reachable_resend_acceptance_travel, \
-        res_summary_reachable_resend_acceptance_false_dismissals = \
-            np.average(res_cube_reachable_resend_acceptance, axis=1), np.average(res_cube_reachable_resend_acceptance_disclosure, axis=1), \
-            np.average(res_cube_reachable_resend_acceptance_travel, axis=1), np.average(res_cube_reachable_resend_acceptance_false_dismissals, axis=1)
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_SampleMatch", res_summary_reachable_resend_acceptance,
-                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_SampleMatch_disclosure",
-                   res_summary_reachable_resend_acceptance_disclosure,
-                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_SampleMatch_travel",
-                   res_summary_reachable_resend_acceptance_travel,
-                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-        np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_SampleMatch_false_dismissals",
-                   res_summary_reachable_resend_acceptance_false_dismissals,
-                   header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
 
-def evalOnline_vary_at(p, wList, tList, wLoc, tLoc, reach_dist_map):
+def eval_U2E_threshold(p, wList, tList, wLoc, tLoc, reachable_distance_map):
     exp_name = sys._getframe().f_code.co_name
     logging.info(exp_name)
 
-    res_cube_reachable_resend_acceptance = np.zeros((len(eps_list), len(seed_list), len(at_list)))
-    res_cube_reachable_resend_acceptance_disclosure = np.zeros((len(eps_list), len(seed_list), len(at_list)))
-    res_cube_reachable_resend_acceptance_travel = np.zeros((len(eps_list), len(seed_list), len(at_list)))
-    res_cube_reachable_resend_acceptance_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(at_list)))
+    res_cube_reachability_NAT = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_false_hits = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_WTD = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_NNW = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_precision = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
+    res_cube_reachability_recall = np.zeros((len(eps_list), len(seed_list), len(U2E_threshold_list)))
 
-    reachableProbDict = Simulation.getProbability(radius_list, eps_list, "reachable") # U2U stage.
-    reachableProbDict2 = Simulation2.getProbability(radius_list, eps_list, "reachable2") # U2E stage.
+    reachabilityMapU2U = Simulation.getProbability(radius_list, eps_list, "reachability") # U2U stage.
+    # reachabilityMapU2E = Simulation2.getProbability(radius_list, eps_list, "reachability_2") # U2E stage.
     for j in range(len(seed_list)):
         for i in range(len(eps_list)):
-            for k in range(len(at_list)):
+            for k in range(len(U2E_threshold_list)):
                 p.seed = seed_list[j]
                 p.eps = eps_list[i]
-                p.acceptanceThreshold = at_list[k]
+                print ("seed/eps/radius", p.seed, p.eps, p.radius)
+                p.reachabilityThresholdU2E = U2E_threshold_list[k]
                 dp = Differential(p.seed)
 
                 perturbedWList = Geocrowd.perturbedData(wList, p, dp)
                 perturbedTList = Geocrowd.perturbedData(tList, p, dp)
 
-                # compute reachable distance such that a matched worker-task pair is
-                # reachable in the actual domain.
-                workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList, reach_dist_map)
+                reachable_prob_U2U = reachabilityMapU2U[Utils.RadiusEps2Str(p.radius, p.eps)]
 
-                reachableProb = reachableProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
+                candidate_workers = Geocrowd.createBipartiteGraphU2U(perturbedWList, perturbedTList,
+                                                                     reachable_distance_map, reachable_prob_U2U, p)
+
+                """
+                precision/recall during U2U
+                """
+                precisions, recalls = [], []
+                for tid, wids in candidate_workers.items():
+                    selected_workers = len(wids)
+                    reachable_workers, reachable_workers_other = 0, 0
+                    for wid in wids:
+                        # noisy_dist = Utils.distance(wNoisyLoc[wid][0], wNoisyLoc[wid][1], tNoisyLoc[tid][0], tNoisyLoc[tid][1])
+                        actual_dist = Utils.distance(wLoc[wid][0], wLoc[wid][1], tLoc[tid][0], tLoc[tid][1])
+                        if actual_dist <= reachable_distance_map[wid]:
+                            reachable_workers += 1  # actual domain
+                            # if noisy_dist <= reachable_distance_map[wid] and actual_dist <= reachable_distance_map[wid]:
+                            #     reachable_selected_workers += 1
+                    # number of reachable workers in total
+                    for wid, loc in wLoc.items():
+                        if wid not in wids:
+                            actual_dist_other = Utils.distance(loc[0], loc[1], tLoc[tid][0], tLoc[tid][1])
+                            if actual_dist_other <= reachable_distance_map[wid]:
+                                reachable_workers_other += 1  # actual domain
+                    if selected_workers > 0:
+                        precisions.append(float(reachable_workers) / selected_workers)
+                    if reachable_workers > 0 or reachable_workers_other > 0:
+                        recalls.append(float(reachable_workers) / (reachable_workers + reachable_workers_other))
+                reachability_precision, reachability_recall = np.mean(precisions), np.mean(recalls)
 
                 # Ranking with reachable probability, resend strategy and worker's acceptance policy
-                reachableProb2 = reachableProbDict2[Utils.RadiusEps2Str(p.radius, p.eps)]
-                matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist, \
-                    average_reachable_acceptance_false_dismissals = \
-                    Geocrowd.rankingByReachabilityResendAcceptance(workers, range(p.taskCount), wLoc, tLoc,
-                                                                   reachableProb, reachableProb2,
-                                                                   reach_dist_map, p.acceptanceThreshold)
-                print("false_dismissals", average_reachable_acceptance_false_dismissals)
+                reachability_NAT, reachability_false_hits, reachability_WTD, reachability_false_dismissals, reachability_NNW = \
+                    Geocrowd.rankingByReachabilityAnalytical(candidate_workers, range(p.taskCount), wLoc, tLoc,
+                                                            reachable_distance_map, p.reachabilityThresholdU2E, p)
 
-                res_cube_reachable_resend_acceptance[i, j, k], res_cube_reachable_resend_acceptance_disclosure[i, j, k], \
-                res_cube_reachable_resend_acceptance_travel[i, j, k], res_cube_reachable_resend_acceptance_false_dismissals[i, j, k] = \
-                    matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist, \
-                    average_reachable_acceptance_false_dismissals
+                res_cube_reachability_NAT[i, j, k], res_cube_reachability_false_hits[i, j, k], \
+                res_cube_reachability_WTD[i, j, k], res_cube_reachability_false_dismissals[i, j, k], \
+                res_cube_reachability_NNW[i, j, k], res_cube_reachability_precision[i, j, k], \
+                res_cube_reachability_recall[i, j, k] = \
+                    reachability_NAT, reachability_false_hits, reachability_WTD, reachability_false_dismissals, \
+                    reachability_NNW, reachability_precision, reachability_recall
 
-    res_summary_reachable_resend_acceptance, res_summary_reachable_resend_acceptance_disclosure, res_summary_reachable_resend_acceptance_travel, \
-    res_summary_reachable_resend_acceptance_false_dismissals = \
-        np.average(res_cube_reachable_resend_acceptance, axis=1), np.average(res_cube_reachable_resend_acceptance_disclosure, axis=1), \
-        np.average(res_cube_reachable_resend_acceptance_travel, axis=1), np.average(res_cube_reachable_resend_acceptance_false_dismissals, axis=1)
-    np.savetxt(p.resdir + "/vary_at/" + Params.DATASET + "_" + exp_name + "_SampleMatch", res_summary_reachable_resend_acceptance,
-               header="\t".join([str(r) for r in at_list]), fmt='%.4f\t')
-    np.savetxt(p.resdir + "/vary_at/" + Params.DATASET + "_" + exp_name + "_SampleMatch_disclosure",
-               res_summary_reachable_resend_acceptance_disclosure,
-               header="\t".join([str(r) for r in at_list]), fmt='%.4f\t')
-    np.savetxt(p.resdir + "/vary_at/" + Params.DATASET + "_" + exp_name + "_SampleMatch_travel",
-               res_summary_reachable_resend_acceptance_travel,
-               header="\t".join([str(r) for r in at_list]), fmt='%.4f\t')
-    np.savetxt(p.resdir + "/vary_at/" + Params.DATASET + "_" + exp_name + "_SampleMatch_false_dismissals",
-               res_summary_reachable_resend_acceptance_false_dismissals,
-               header="\t".join([str(r) for r in at_list]), fmt='%.4f\t')
+    res_summary_reachability_NAT, res_summary_reachability_false_hits, res_summary_reachability_WTD, \
+    res_summary_reachability_false_dismissals, res_summary_reachability_NNW, \
+    res_summary_reachability_precision, res_summary_reachability_recall = \
+        np.average(res_cube_reachability_NAT, axis=1), np.average(res_cube_reachability_false_hits, axis=1), \
+        np.average(res_cube_reachability_WTD, axis=1), np.average(res_cube_reachability_false_dismissals, axis=1), \
+        np.average(res_cube_reachability_NNW, axis=1), np.average(res_cube_reachability_precision, axis=1), \
+        np.average(res_cube_reachability_recall, axis=1)
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NAT", res_summary_reachability_NAT,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_hits",
+               res_summary_reachability_false_hits,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_WTD",
+               res_summary_reachability_WTD,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_dismissals",
+               res_summary_reachability_false_dismissals,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NNW",
+               res_summary_reachability_NNW,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_precision",
+               res_summary_reachability_precision,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+    np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_recall",
+               res_summary_reachability_recall,
+               header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
 
-# NOTE: expanded stragegy should be enabled.
-def evalOnline_vary_ct(p, wList, tList, wLoc, tLoc, reach_dist_map):
+def eval_U2U_threshold(p, wList, tList, wLoc, tLoc, reachable_distance_map):
     exp_name = sys._getframe().f_code.co_name
     logging.info(exp_name)
 
-    res_cube_reachable_resend_acceptance = np.zeros((len(eps_list), len(seed_list), len(ct_list)))
-    res_cube_reachable_resend_acceptance_disclosure = np.zeros((len(eps_list), len(seed_list), len(ct_list)))
-    res_cube_reachable_resend_acceptance_travel = np.zeros((len(eps_list), len(seed_list), len(ct_list)))
+    res_cube_reachability_NAT = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_false_hits = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_WTD = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_false_dismissals = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_NNW = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_precision = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_recall = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_u2u_runtime = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_u2e_runtime = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
+    res_cube_reachability_CAN = np.zeros((len(eps_list), len(seed_list), len(U2U_threshold_list)))
 
-    reachableProbDict = Simulation.getProbability(radius_list, eps_list, "reachability") # U2U stage.
-    reachableProbDict2 = Simulation2.getProbability(radius_list, eps_list, "reachability_2") # U2E stage.
-    coverageProbDict = Simulation.getProbability(radius_list, eps_list, "precision_recall")
+    reachabilityMapU2U = Simulation.getProbability(radius_list, eps_list, "reachability") # U2U stage.
+    # reachabilityMapU2E = Simulation2.getProbability(radius_list, eps_list, "reachability_2") # U2E stage.
     for j in range(len(seed_list)):
         for i in range(len(eps_list)):
-            for k in range(len(ct_list)):
+            for k in range(len(U2U_threshold_list)):
                 p.seed = seed_list[j]
                 p.eps = eps_list[i]
-                p.coverageThreshold = ct_list[k]
+                print ("seed/eps/radius", p.seed, p.eps, p.radius)
+                p.reachabilityThresholdU2U = U2U_threshold_list[k]
                 dp = Differential(p.seed)
 
-                perturbedWList = Geocrowd.perturbedData(wList, p, dp) # (lat, lon, id)
+                perturbedWList = Geocrowd.perturbedData(wList, p, dp)
                 perturbedTList = Geocrowd.perturbedData(tList, p, dp)
 
-                # compute reachable distance such that a matched worker-task pair is
-                # reachable in the actual domain.
-                # coverageProb = coverageProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
-                # reachableNoisyDist = Utils.reachableNoisyDist(coverageProb, p.coverageThreshold)
-                workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList, reach_dist_map)
+                reachable_prob_U2U = reachabilityMapU2U[Utils.RadiusEps2Str(p.radius, p.eps)]
+                # reachable_prob_U2E = reachabilityMapU2E[Utils.RadiusEps2Str(p.radius, p.eps)]
 
-                reachableProb = reachableProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
+                before_u2u = time()
+                candidate_workers = Geocrowd.createBipartiteGraphU2U(perturbedWList, perturbedTList,
+                                                                     reachable_distance_map, reachable_prob_U2U, p)
+                duration_u2u = time() - before_u2u
+
+                """
+                precision/recall during U2U
+                """
+                precisions, recalls = [], []
+                for tid, wids in candidate_workers.items():
+                    selected_workers = len(wids)
+                    reachable_workers, reachable_workers_other = 0, 0
+                    for wid in wids:
+                        # noisy_dist = Utils.distance(wNoisyLoc[wid][0], wNoisyLoc[wid][1], tNoisyLoc[tid][0], tNoisyLoc[tid][1])
+                        actual_dist = Utils.distance(wLoc[wid][0], wLoc[wid][1], tLoc[tid][0], tLoc[tid][1])
+                        if actual_dist <= reachable_distance_map[wid]:
+                            reachable_workers += 1  # actual domain
+                            # if noisy_dist <= reachable_distance_map[wid] and actual_dist <= reachable_distance_map[wid]:
+                            #     reachable_selected_workers += 1
+                    # number of reachable workers in total
+                    for wid, loc in wLoc.items():
+                        if wid not in wids:
+                            actual_dist_other = Utils.distance(loc[0], loc[1], tLoc[tid][0], tLoc[tid][1])
+                            if actual_dist_other <= reachable_distance_map[wid]:
+                                reachable_workers_other += 1  # actual domain
+                    if selected_workers > 0:
+                        precisions.append(float(reachable_workers) / selected_workers)
+                    if reachable_workers > 0 or reachable_workers_other > 0:
+                        recalls.append(float(reachable_workers) / (reachable_workers + reachable_workers_other))
+                reachability_precision, reachability_recall, reachability_CAN = np.mean(precisions), np.mean(recalls), len(candidate_workers)
 
                 # Ranking with reachable probability, resend strategy and worker's acceptance policy
-                reachableProb2 = reachableProbDict2[Utils.RadiusEps2Str(p.radius, p.eps)]
-                matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist, \
-                average_reachable_acceptance_false_dismissals = \
-                    Geocrowd.rankingByReachabilityResendAcceptance(workers, range(p.taskCount), wLoc, tLoc,
-                                                                   reachableProb, reachableProb2,
-                                                                   reach_dist_map, p.acceptanceThreshold)
-                print("false_dismissals", average_reachable_acceptance_false_dismissals)
 
-                res_cube_reachable_resend_acceptance[i, j, k], res_cube_reachable_resend_acceptance_disclosure[i, j, k], \
-                res_cube_reachable_resend_acceptance_travel[i, j, k] = \
-                    matches_reachable_resend_acceptance, extra_reachable_acceptance_disclosure, average_reachable_acceptance_travel_dist
+                before_u2e = time()
+                reachability_NAT, reachability_false_hits, reachability_WTD, reachability_false_dismissals, reachability_NNW = \
+                    Geocrowd.rankingByReachabilityAnalytical(candidate_workers, range(p.taskCount), wLoc, tLoc,
+                                                             reachable_distance_map, p.reachabilityThresholdU2E, p)
+                duration_u2e = time() - before_u2e
 
+                res_cube_reachability_NAT[i, j, k], res_cube_reachability_false_hits[i, j, k], \
+                res_cube_reachability_WTD[i, j, k], res_cube_reachability_false_dismissals[i, j, k], \
+                res_cube_reachability_NNW[i, j, k], res_cube_reachability_precision[i, j, k], \
+                res_cube_reachability_recall[i, j, k], res_cube_reachability_u2u_runtime[i, j, k], res_cube_reachability_u2e_runtime[i, j, k], \
+                res_cube_reachability_CAN[i, j, k] = \
+                    reachability_NAT, reachability_false_hits, reachability_WTD, reachability_false_dismissals, \
+                    reachability_NNW, reachability_precision, reachability_recall, duration_u2u, duration_u2e, reachability_CAN
 
-    res_summary_reachable_resend_acceptance, res_summary_reachable_resend_acceptance_disclosure, res_summary_reachable_resend_acceptance_travel = \
-        np.average(res_cube_reachable_resend_acceptance, axis=1), np.average(res_cube_reachable_resend_acceptance_disclosure, axis=1), \
-        np.average(res_cube_reachable_resend_acceptance_travel, axis=1)
-    np.savetxt(p.resdir + "/vary_ct/" + Params.DATASET + "_" + exp_name + "_reachable_resend_acceptance", res_summary_reachable_resend_acceptance,
-               header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-    np.savetxt(p.resdir + "/vary_ct/" + Params.DATASET + "_" + exp_name + "_reachable_resend_acceptance_disclosure",
-               res_summary_reachable_resend_acceptance_disclosure,
-               header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-    np.savetxt(p.resdir + "/vary_ct/" + Params.DATASET + "_" + exp_name + "_reachable_resend_acceptance_travel",
-               res_summary_reachable_resend_acceptance_travel,
-               header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
+            res_summary_reachability_NAT, res_summary_reachability_false_hits, res_summary_reachability_WTD, \
+            res_summary_reachability_false_dismissals, res_summary_reachability_NNW, \
+            res_summary_reachability_precision, res_summary_reachability_recall, res_summary_reachability_u2u_runtime, \
+            res_summary_reachability_u2e_runtime, res_summary_reachability_CAN = \
+                np.average(res_cube_reachability_NAT, axis=1), np.average(res_cube_reachability_false_hits, axis=1), \
+                np.average(res_cube_reachability_WTD, axis=1), np.average(res_cube_reachability_false_dismissals, axis=1), \
+                np.average(res_cube_reachability_NNW, axis=1), np.average(res_cube_reachability_precision, axis=1), \
+                np.average(res_cube_reachability_recall, axis=1), np.average(res_cube_reachability_u2u_runtime, axis=1), \
+                np.average(res_cube_reachability_u2e_runtime, axis=1), np.average(res_cube_reachability_CAN, axis=1)
 
-def evalOffline(p, wList, tList, wLoc, tLoc, reach_dist_map):
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NAT",
+                       res_summary_reachability_NAT,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_hits",
+                       res_summary_reachability_false_hits,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_WTD",
+                       res_summary_reachability_WTD,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_false_dismissals",
+                       res_summary_reachability_false_dismissals,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_NNW",
+                       res_summary_reachability_NNW,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_precision",
+                       res_summary_reachability_precision,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_recall",
+                       res_summary_reachability_recall,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_runtime_u2u",
+                       res_summary_reachability_u2u_runtime,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_runtime_u2e",
+                       res_summary_reachability_u2e_runtime,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_Reachability_Analytical_CAN",
+                       res_summary_reachability_CAN,
+                       header="\t".join([str(r) for r in U2E_threshold_list]), fmt='%.4f\t')
+
+def evalOffline(p, wList, tList, wLoc, tLoc, reachable_distance_map):
     exp_name = ""
     logging.info(exp_name)
 
     res_cube = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
-    res_cube_travel = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
+    res_cube_WTD = np.zeros((len(eps_list), len(seed_list), len(radius_list)))
 
     # coverageProbDict = Simulation.getProbability(radius_list, eps_list, "coverage")
     for expanded in [False]:
@@ -349,33 +561,32 @@ def evalOffline(p, wList, tList, wLoc, tLoc, reach_dist_map):
                     perturbedTList = Geocrowd.perturbedData(tList, p, dp)
 
                     # associate a reachable distance to each worker.
-                    reach_dist_map = {} # <wid, reachable_distance>
+                    reachable_distance_map = {} # <wid, reachable_distance>
                     for wid in wLoc.keys():
-                        reach_dist_map[wid] = Utils.randomReachableDist(p.reachableDistRange, p.seed)
+                        reachable_distance_map[wid] = Utils.randomReachableDist(p.reachableDistRange, p.seed)
 
                     # compute reachable distance such that a matched worker-task pair is
                     # reachable in the actual domain.
                     # coverageProb = coverageProbDict[Utils.RadiusEps2Str(p.radius, p.eps)]
                     if expanded:
-                        # reachableNoisyDist = Utils.reachableNoisyDist(coverageProb, p.coverageThreshold)
                         exp_name = sys._getframe().f_code.co_name + "_expanded"
                     else:
                         exp_name = sys._getframe().f_code.co_name
 
-                    workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList, reach_dist_map)
+                    workers = Geocrowd.createBipartiteGraph(perturbedWList, perturbedTList, reachable_distance_map)
 
                     # max flow
                     _, flowDict = Geocrowd.maxFlow(workers, range(p.taskCount))
                     matches = Geocrowd.flowDict2Matches(flowDict)
 
 
-                    res_cube[i, j, k], res_cube_travel[i, j, k] = \
-                        Geocrowd.satisfiableMatches(matches, wLoc, tLoc, reach_dist_map)
+                    res_cube[i, j, k], res_cube_WTD[i, j, k] = \
+                        Geocrowd.satisfiableMatches(matches, wLoc, tLoc, reachable_distance_map)
 
-            res_summary, res_summary_travel = np.average(res_cube, axis=1), np.average(res_cube_travel, axis=1)
+            res_summary, res_summary_WTD = np.average(res_cube, axis=1), np.average(res_cube_WTD, axis=1)
             np.savetxt(p.resdir + Params.DATASET + "_" + exp_name, res_summary,
                        header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
-            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_travel", res_summary_travel,
+            np.savetxt(p.resdir + Params.DATASET + "_" + exp_name + "_WTD", res_summary_WTD,
                        header="\t".join([str(r) for r in radius_list]), fmt='%.4f\t')
 
 
@@ -388,17 +599,18 @@ without privacy
 """
 # without privacy
 wList, tList, wLoc, tLoc = Geocrowd.sampleWorkersTasks(p.workerFile, p.taskFile, p.workerCount, p.taskCount)
-reach_dist_map = dict([(wid, Utils.randomReachableDist(p.reachableDistRange, p.seed)) for wid in wLoc.keys()]) # <wid, reachable_distance>
-workers = Geocrowd.createBipartiteGraph(wList, tList, reach_dist_map)
+reachable_distance_map = dict([(wid, Utils.randomReachableDist(p.reachableDistRange, p.seed)) for wid in wLoc.keys()]) # <wid, reachable_distance>
+workers = Geocrowd.createBipartiteGraph(wList, tList, reachable_distance_map)
 
-onlineMatches = Geocrowd.ranking(workers, range(p.taskCount), wLoc, tLoc)
-onlineCount, onlineTravelCost = Geocrowd.satisfiableMatches(onlineMatches, wLoc, tLoc, reach_dist_map)
-print("Non-private online (utility/travel cost): ", onlineCount, onlineTravelCost)
+ranking_nearest_NAT, ranking_nearest_false_hits, ranking_nearest_WTD, ranking_nearest_NNW = Geocrowd.rankingNearest(workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
+ranking_random_NAT, ranking_random_false_hits, ranking_random_WTD, ranking_random_NNW= Geocrowd.rankingRandom(workers, range(p.taskCount), wLoc, tLoc, reachable_distance_map)
+print("Non-private Ranking-Nearest (NAT/False hits/WTD/NNW): ", ranking_nearest_NAT, ranking_nearest_false_hits, ranking_nearest_WTD, ranking_nearest_NNW)
+print("Non-private Ranking-Random (NAT/False hits/WTD/NNW): ", ranking_random_NAT, ranking_random_false_hits, ranking_random_WTD, ranking_random_NNW)
 
 # with privacy
-evalOnline(p, wList, tList, wLoc, tLoc, reach_dist_map)
-# evalOnline_vary_at(p, wList, tList, wLoc, tLoc, reach_dist_map)
-# evalOnline_vary_ct(p, wList, tList, wLoc, tLoc, reach_dist_map)
+# eval(p, wList, tList, wLoc, tLoc, reachable_distance_map)
+eval_U2U_threshold(p, wList, tList, wLoc, tLoc, reachable_distance_map)
+# eval_U2E_threshold(p, wList, tList, wLoc, tLoc, reachable_distance_map)
 
 # onlineMatches = Geocrowd.balanceAlgo(workers, range(p.taskCount), 2)
 # offlineMatches = Geocrowd.maxFlowValue(workers, range(p.taskCount), 2)
@@ -414,4 +626,4 @@ print("Non-private offline: ", offlineMatches)
 
 # with privacy
 # TODO: fix offline.
-# evalOffline(p, wList, tList, wLoc, tLoc, reach_dist_map)
+# evalOffline(p, wList, tList, wLoc, tLoc, reachable_distance_map)

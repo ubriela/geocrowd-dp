@@ -27,10 +27,10 @@ def flowDict2Matches(flowDict):
 """
 Counting the number of satisfiable matches, which have worker-task distance smaller than a reachable distance
 """
-def satisfiableMatches(matches, wLoc, tLoc, reach_dist_map):
+def satisfiableMatches(matches, wLoc, tLoc, reachable_distance_map):
     c = defaultdict(list)
     count = 0
-    total_travel_dist = 0
+    total_travel_dist = 0.0
     for tid, wid in matches:
         c[wid].append(tid)
 
@@ -38,7 +38,7 @@ def satisfiableMatches(matches, wLoc, tLoc, reach_dist_map):
         for tid in taskSet:
             # any satisfiable worker-task --> break
             dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1])
-            if dist <= reach_dist_map[wid]:
+            if dist <= reachable_distance_map[wid]:
                 count += 1
                 total_travel_dist += dist
                 break
@@ -165,7 +165,7 @@ def sampleWorkersTasks(workerFile, taskFile, wCount, tCount):
 """
 Crete bipartite graph from workers and tasks list
 """
-def createBipartiteGraph(wList, tList, reach_dist_map):
+def createBipartiteGraph(wList, tList, reachable_distance_map):
     """
     :param wList: array of workers
     :param tList: array of tasks
@@ -178,10 +178,34 @@ def createBipartiteGraph(wList, tList, reach_dist_map):
     """
     for wlat, wlon, wid in wList:
         for tlat, tlon, tid in tList:
-            dist = Utils.distance(wlat, wlon, tlat, tlon)
-            # print (dist)
-            if dist <= reach_dist_map[wid]:
-                workers[wid].add(tid)
+            noisy_dist = Utils.distance(wlat, wlon, tlat, tlon)
+            reachable_distance = reachable_distance_map[wid]
+            if noisy_dist <= reachable_distance:
+                workers[tid].add(wid)
+    return workers
+
+def createBipartiteGraphU2U(wList, tList, reachable_distance_map, reachable_prob_U2U, p):
+    """
+    :param wList: array of workers
+    :param tList: array of tasks
+    :param reachableDist: in meters
+    :return:
+    """
+    workers = defaultdict(set)
+    """
+    for each worker, find a set of reachable tasks
+    """
+    for wlat, wlon, wid in wList:
+        for tlat, tlon, tid in tList:
+            reachable_distance = reachable_distance_map[wid]
+            noisy_dist = Utils.distance(wlat, wlon, tlat, tlon)
+            reachable_prob = reachable_prob_U2U[
+                str(Utils.round_reachable_dist(reachable_distance)) + ":" +
+                str(Utils.dist_range(noisy_dist, Params.step))
+            ]
+            # reachability >= a threshold
+            if reachable_prob >= p.reachabilityThresholdU2U:
+                workers[tid].add(wid)
     return workers
 
 # wList, tList = sampleWorkersTasks("./dataset/tdrive/vehicles.txt", "./dataset/tdrive/passengers.txt", 1000, 1000)
@@ -192,23 +216,74 @@ Implementation of Ranking algorithm for online bipartite matching.
 
 Citation: Karp et al. An Optimal Algorithm for On-line Bipartite Matching
 
-Ranking based on distance.
+Ranking based on random rank.
 """
-def ranking(orgWorkers, taskids, wLoc, tLoc):
+def rankingRandom(candidateWorkers, taskids, wLoc, tLoc, reachable_distance_map):
     """
-    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param candidateWorkers: map each workerid to a list of nearby tasks
     :param taskids: list of taskids arriving in order
     :return: a list matching pairs
     """
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
 
     # random permutation of workers' ranks
-    # randomRanks = list(range(len(workers)))
-    # random.shuffle(randomRanks)
-    # workerRank = dict([(wid, randomRanks[i]) for i, wid in enumerate(workers.keys())])
-    # sortedWorkerRank = sorted(workerRank.items(), key=lambda x:x[1], reversed=False)
+    randomRanks = list(range(len(workers)))
+    random.shuffle(randomRanks)
+    workerRank = dict([(wid, randomRanks[i]) for i, wid in enumerate(workers.keys())])
+
+    total_notified_workers = 0
+    total_travel_dist = 0.0
+
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            if len(eligibleWids) > 0:
+                # find the worker of highest rank
+                highestRankWid = min(eligibleWids, key=lambda w:workerRank[w])
+                total_notified_workers += 1
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0],
+                                             wLoc[highestRankWid][1])
+                if actual_dist <= reachable_distance_map[highestRankWid]:
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += actual_dist
+                # affected tasks
+                affectedTids = workers[highestRankWid]
+
+                # delete highestRankWid from workers, tid from tasks
+                del workers[highestRankWid]
+                del tasks[tid]
+
+                # delete from workerRank & tasks
+                # del workerRank[highestRankWid]
+
+                for _tid in affectedTids:
+                    if _tid != tid:
+                        tasks[_tid].discard(highestRankWid)
+                        if len(tasks[_tid]) == 0:
+                            del tasks[_tid]
+
+    matched_count = len(matches)
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist / matched_count
+    return matched_count, false_hits, average_travel_dist, total_notified_workers
+
+"""
+Similar to above function but ranking based on distance.
+"""
+def rankingNearest(candidateWorkers, taskids, wLoc, tLoc, reachable_distance_map):
+    """
+    :param candidateWorkers: map each workerid to a list of nearby tasks
+    :param taskids: list of taskids arriving in order
+    :return: a list matching pairs
+    """
+    matches = []
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
+
+    total_notified_workers = 0
+    total_travel_dist = 0.0
 
     for tid in taskids:  # iterate through task list
         if tid in tasks: # check if tid has eligible nearby workers
@@ -216,9 +291,13 @@ def ranking(orgWorkers, taskids, wLoc, tLoc):
             if len(eligibleWids) > 0:
                 # find the worker of highest rank
                 highestRankWid = min(eligibleWids, key=lambda w:Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[w][0], wLoc[w][1]))
-                # highestRankWid = max(eligibleWids, key=lambda x:workerRank[x])
-                matches.append((tid, highestRankWid))
-                # matches += 1
+                total_notified_workers += 1
+
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0],
+                                             wLoc[highestRankWid][1])
+                if actual_dist <= reachable_distance_map[highestRankWid]:
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += actual_dist
 
                 # affected tasks
                 affectedTids = workers[highestRankWid]
@@ -236,7 +315,10 @@ def ranking(orgWorkers, taskids, wLoc, tLoc):
                         if len(tasks[_tid]) == 0:
                             del tasks[_tid]
 
-    return matches
+    matched_count = len(matches)
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist / matched_count
+    return matched_count, false_hits, average_travel_dist, total_notified_workers
 
 # workers = {0:set([1,2]), 2:set([0,3]), 3:set([2]), 4:set([2,3]), 5:set([5])}
 # taskids = [0,1,2,3,4,5]
@@ -247,22 +329,18 @@ Modify ranking algorithm such that each worker is selected by the highest reacha
 the highest random rank. This technique not only increases the number of performed tasks but also reduces the
 travel distance.
 """
-def rankingByReachability(orgWorkers, taskids, wLoc, tLoc, reachableProb, reach_dist_map):
+def rankingByReachability(candidateWorkers, taskids, wLoc, tLoc, reachable_prob_U2E, reachable_distance_map):
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
-
-    # random permutation of workers' ranks
-    randomRanks = list(range(len(workers)))
-    random.shuffle(randomRanks)
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workers
 
     for tid in taskids:  # iterate through task list
         if tid in tasks: # check if tid has eligible nearby workers
             eligibleWids = list(tasks[tid])
             if len(eligibleWids) > 0:
                 # find the worker of highest probability of reachability
-                highestRankWid = max(eligibleWids, key=lambda wid:reachableProb[
-                    str(Utils.round_reachable_dist(reach_dist_map[wid])) + ":" +
+                highestRankWid = max(eligibleWids, key=lambda wid:reachable_prob_U2E[
+                    str(Utils.round_reachable_dist(reachable_distance_map[wid])) + ":" +
                     str(Utils.dist_range(Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1]), Params.step))
                 ])
                 matches.append((tid, highestRankWid))
@@ -289,10 +367,10 @@ to the next matched worker. This stragegy helps to increase the number of perfor
 
 Note: We assume that workers would accept their matched tasks as long as the tasks are reachable.
 """
-def rankingResend(orgWorkers, taskids, wLoc, tLoc, reach_dist_map):
+def rankingResendRandom(candidateWorkers, taskids, wLoc, tLoc, reachable_distance_map):
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
 
     # random permutation of workers' ranks
     randomRanks = list(range(len(workers)))
@@ -300,8 +378,8 @@ def rankingResend(orgWorkers, taskids, wLoc, tLoc, reach_dist_map):
     workerRank = dict([(wid, randomRanks[i]) for i, wid in enumerate(workers.keys())])
 
     # total disclosure
-    total_disclosure = 0
-    total_travel_dist = 0
+    total_notified_workers = 0
+    total_travel_dist = 0.0
 
     for tid in taskids:  # iterate through task list
         if tid in tasks: # check if tid has eligible nearby workers
@@ -310,12 +388,12 @@ def rankingResend(orgWorkers, taskids, wLoc, tLoc, reach_dist_map):
             while len(eligibleWids) > 0 and not matched:
                 # find the worker of the highest rank.
                 highestRankWid = max(eligibleWids, key=lambda x:workerRank[x])
-                dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
-                total_disclosure += 1
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                total_notified_workers += 1
 
-                if dist <= reach_dist_map[highestRankWid]: # satisfiable match
+                if actual_dist <= reachable_distance_map[highestRankWid]: # satisfiable match
                     matches.append((tid, highestRankWid))
-                    total_travel_dist += dist
+                    total_travel_dist += actual_dist
                     matched = True
                 else:
                     eligibleWids.remove(highestRankWid)
@@ -335,39 +413,83 @@ def rankingResend(orgWorkers, taskids, wLoc, tLoc, reach_dist_map):
                                 del tasks[_tid]
 
     matched_count = len(matches)
-    extra_disclosure = total_disclosure - matched_count
-    average_travel_dist = total_travel_dist/matched_count
-    return matched_count, extra_disclosure, average_travel_dist
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist/matched_count if matched_count != 0 else 0
+    return matched_count, false_hits, average_travel_dist, total_notified_workers
+
+"""
+Similar to above function except ranking by distance.
+"""
+def rankingResendNearest(candidateWorkers, taskids, wLoc, tLoc, reachable_distance_map):
+    matches = []
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
+
+    # total disclosure
+    total_notified_workers = 0
+    total_travel_dist = 0.0
+
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            matched = False # if matched is True, go to the next task
+            while len(eligibleWids) > 0 and not matched:
+                # find the worker of the highest rank.
+                highestRankWid = min(eligibleWids, key=lambda x:Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[x][0], wLoc[x][1]))
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                total_notified_workers += 1
+
+                if actual_dist <= reachable_distance_map[highestRankWid]: # satisfiable match
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += actual_dist
+                    matched = True
+                else:
+                    eligibleWids.remove(highestRankWid)
+
+                if matched:
+                    # affected tasks
+                    affectedTids = workers[highestRankWid]
+
+                    # delete highestRankWid from workers, tid from tasks
+                    del workers[highestRankWid]
+                    del tasks[tid]
+
+                    for _tid in affectedTids:
+                        if _tid != tid:
+                            tasks[_tid].discard(highestRankWid)
+                            if len(tasks[_tid]) == 0:
+                                del tasks[_tid]
+
+    matched_count = len(matches)
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist/matched_count if matched_count != 0 else 0
+    return matched_count, false_hits, average_travel_dist, total_notified_workers
 
 """
 Modify ranking algorithm that considers both reachable probability and resend strategy.
 """
-def rankingByReachabilityResend(orgWorkers, taskids, wLoc, tLoc, reachableProb, reach_dist_map):
+def rankingByReachabilityResend(candidateWorkers, taskids, wLoc, tLoc, reachable_prob_U2E, reachable_distance_map):
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
-
-    # random permutation of workers' ranks
-    randomRanks = list(range(len(workers)))
-    random.shuffle(randomRanks)
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
 
     # total disclosure
-    total_disclosure = 0
-    total_travel_dist = 0
+    total_notified_workers = 0
+    total_travel_dist = 0.0
     for tid in taskids:  # iterate through task list
         if tid in tasks: # check if tid has eligible nearby workers
             eligibleWids = list(tasks[tid])
             matched = False # if matched is True, go to the next task
             while len(eligibleWids) > 0 and not matched:
                 # find the worker of highest probability of reachability
-                highestRankWid = max(eligibleWids, key=lambda wid:reachableProb[
-                    str(Utils.round_reachable_dist(reach_dist_map[wid])) + ":" +
+                highestRankWid = max(eligibleWids, key=lambda wid:reachable_prob_U2E[
+                    str(Utils.round_reachable_dist(reachable_distance_map[wid])) + ":" +
                     str(Utils.dist_range(Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1]), Params.step))
                 ])
                 dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
-                total_disclosure += 1
+                total_notified_workers += 1
 
-                if dist <= reach_dist_map[highestRankWid]: # satisfiable match
+                if dist <= reachable_distance_map[highestRankWid]: # satisfiable match
                     matches.append((tid, highestRankWid))
                     total_travel_dist += dist
                     matched = True
@@ -389,59 +511,56 @@ def rankingByReachabilityResend(orgWorkers, taskids, wLoc, tLoc, reachableProb, 
                                 del tasks[_tid]
 
     matched_count = len(matches)
-    extra_disclosure = total_disclosure - matched_count
-    average_travel_dist = total_travel_dist/matched_count
-    return matched_count, extra_disclosure, average_travel_dist
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist/matched_count if matched_count != 0 else 0
+    return matched_count, false_hits, average_travel_dist
 
 """
 Modify ranking algorithm that considers reachable probability, resend strategy and worker's acceptance policy.
 The policy is that a worker can reject a task without knowing the task location. This helps to decrease the amount
 of extra disclosure.
 """
-def rankingByReachabilityResendAcceptance(orgWorkers, taskids, wLoc, tLoc, reachableProb, reachableProb2, reach_dist_map, accceptanceThreshold):
+def rankingByReachabilityEmpirical(candidateWorkers, taskids, wLoc, tLoc, reachable_prob_U2E, reachable_distance_map, reachability_threshold):
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
-
-    # random permutation of workers' ranks
-    randomRanks = list(range(len(workers)))
-    random.shuffle(randomRanks)
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
 
     # total disclosure
-    total_disclosure = 0
-    total_travel_dist = 0
+    total_notified_workers = 0
+    total_travel_dist = 0.0
 
     # false dismissals/false hits during U2E
-    # false_hits equals to total_disclosure - number of matches
+    # false_hits equals to total_notified_workers - number of matches
     false_dismissals = 0 # dismiss a reachable worker.
 
     for tid in taskids:  # iterate through task list
         if tid in tasks: # check if tid has eligible nearby workers
             eligibleWids = list(tasks[tid])
             matched = False # if matched is True, go to the next task
-            while len(eligibleWids) > 0 and not matched:
-                # find the worker of highest probability of reachability (U2U)
-                highestRankWid = max(eligibleWids, key=lambda wid:reachableProb[
-                    str(Utils.round_reachable_dist(reach_dist_map[wid])) + ":" +
+            rejected = False # if rejected is True, go to the next task
+            while len(eligibleWids) > 0 and not matched and not rejected:
+                # find the worker of highest probability of reachability (U2E)
+                highestRankWid = max(eligibleWids, key=lambda wid:reachable_prob_U2E[
+                    str(Utils.round_reachable_dist(reachable_distance_map[wid])) + ":" +
                     str(Utils.dist_range(Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1]),
                                          Params.step))
                 ])
 
-                dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
-                highest_reachable_prob = reachableProb2[
-                    str(Utils.round_reachable_dist(reach_dist_map[highestRankWid])) + ":" +
-                    str(Utils.dist_range(dist, Params.step))] # U2E.
-                if highest_reachable_prob < accceptanceThreshold:
-                    eligibleWids.remove(highestRankWid)
-                    if dist <= reach_dist_map[highestRankWid]:  # if this worker is reachable.
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                highest_reachable_prob = reachable_prob_U2E[
+                    str(Utils.round_reachable_dist(reachable_distance_map[highestRankWid])) + ":" +
+                    str(Utils.dist_range(actual_dist, Params.step))] # U2E.
+                if highest_reachable_prob < reachability_threshold:
+                    rejected = True
+                    if actual_dist <= reachable_distance_map[highestRankWid]:  # if this worker is reachable.
                         false_dismissals += 1
                     continue
-                total_disclosure += 1
+                total_notified_workers += 1
 
-                if dist <= reach_dist_map[highestRankWid]: # satisfiable match
-                    matches.append((tid, highestRankWid))
-                    total_travel_dist += dist
+                if actual_dist <= reachable_distance_map[highestRankWid]: # satisfiable match
                     matched = True
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += actual_dist
                 else:
                     eligibleWids.remove(highestRankWid)
 
@@ -460,24 +579,90 @@ def rankingByReachabilityResendAcceptance(orgWorkers, taskids, wLoc, tLoc, reach
                                 del tasks[_tid]
 
     matched_count = len(matches)
-    extra_disclosure = total_disclosure - matched_count
-    average_travel_dist = total_travel_dist/matched_count
-    return matched_count, extra_disclosure, average_travel_dist, false_dismissals
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist/matched_count if matched_count != 0 else 0
+    return matched_count, false_hits, average_travel_dist, false_dismissals, total_notified_workers
+
+"""
+Similar to above function except using analytical results.
+"""
+def rankingByReachabilityAnalytical(candidateWorkers, taskids, wLoc, tLoc, reachable_distance_map, reachability_threshold, p):
+    matches = []
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
+
+    # total disclosure
+    total_notified_workers = 0
+    total_travel_dist = 0.0
+
+    # false dismissals/false hits during U2E
+    # false_hits equals to total_notified_workers - number of matches
+    false_dismissals = 0 # dismiss a reachable worker.
+
+    for tid in taskids:  # iterate through task list
+        if tid in tasks: # check if tid has eligible nearby workers
+            eligibleWids = list(tasks[tid])
+            matched = False # if matched is True, go to the next task
+            rejected = False # if rejected is True, go to the next task
+            while len(eligibleWids) > 0 and not matched and not rejected:
+                # find the worker of highest probability of reachability (U2E)
+                highestRankWid = max(eligibleWids, key=lambda wid:Utils.reachable_prob_U2E(
+                    reachable_distance_map[wid],
+                    Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[wid][0], wLoc[wid][1]),
+                    p.eps, p.radius))
+
+                actual_dist = Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1])
+                highest_reachable_prob = Utils.reachable_prob_U2E(
+                    reachable_distance_map[highestRankWid],
+                    Utils.distance(tLoc[tid][0], tLoc[tid][1], wLoc[highestRankWid][0], wLoc[highestRankWid][1]),
+                    p.eps, p.radius) # U2E.
+                if highest_reachable_prob < reachability_threshold:
+                    rejected = True
+                    if actual_dist <= reachable_distance_map[highestRankWid]:  # if this worker is reachable.
+                        false_dismissals += 1
+                    continue
+                total_notified_workers += 1
+
+                if actual_dist <= reachable_distance_map[highestRankWid]: # satisfiable match
+                    matched = True
+                    matches.append((tid, highestRankWid))
+                    total_travel_dist += actual_dist
+                else:
+                    eligibleWids.remove(highestRankWid)
+
+                if matched:
+                    # affected tasks
+                    affectedTids = workers[highestRankWid]
+
+                    # delete highestRankWid from workers, tid from tasks
+                    del workers[highestRankWid]
+                    del tasks[tid]
+
+                    for _tid in affectedTids:
+                        if _tid != tid:
+                            tasks[_tid].discard(highestRankWid)
+                            if len(tasks[_tid]) == 0:
+                                del tasks[_tid]
+
+    matched_count = len(matches)
+    false_hits = total_notified_workers - matched_count
+    average_travel_dist = total_travel_dist/matched_count if matched_count != 0 else 0
+    return matched_count, false_hits, average_travel_dist, false_dismissals, total_notified_workers
 
 """
 Implementation of balance algorithm for online b-matching.
 Citation: Kalyanasundaram and Kruhs. An optimal deterministic algorithm for online b-matching
 """
-def balance(orgWorkers, taskids, b):
+def balance(candidateWorkers, taskids, b):
     """
-    :param orgWorkers: map each workerid to a list of nearby tasks
+    :param candidateWorkers: map each workerid to a list of nearby tasks
     :param taskids: list of taskids arriving in order
     :param b: at most b tasks can be matched to one worker
     :return: a list matching pairs
     """
     matches = []
-    workers = copy.deepcopy(orgWorkers)
-    tasks = Utils.workerDict2TaskDict(workers) # create dict with key = taskid
+    tasks = copy.deepcopy(candidateWorkers)
+    workers = Utils.workerDict2TaskDict(tasks) # create dict with key = workerid
 
     # initialize maximum number of tasks matched to each worker
     workerCapacity = Counter(dict([(wid, b) for wid in workers.keys()]))

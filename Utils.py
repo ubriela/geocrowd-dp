@@ -4,7 +4,25 @@ import numpy as np
 from Params import Params
 import bisect
 import random
+import numpy as np
+from scipy.stats import rice
 
+"""
+Variance
+"""
+def privacyLossToStandardDeviation(eps, radius):
+    return np.sqrt(2) * radius/eps
+
+"""
+x = reachable distance
+v = noisy distance
+"""
+def reachable_prob_U2E(x, v, eps, radius):
+    s = privacyLossToStandardDeviation(eps, radius)
+    return rice.cdf(x, v/s, scale=s)
+
+# for q in np.linspace(100,3000,100):
+#     print (q, reachable_prob(q, 1000, 0.7,  700))
 
 """
 Return a list of reachable distances, e.g., [1000, 1100,...,5000]
@@ -110,24 +128,27 @@ def getParameterizedFile(radius, eps):
     return "output/prob/" + RadiusEps2Str(radius, eps)
 
 """
-Compute range of a distance
+Compute range of a distance.
 """
 def dist_range(d_prime, step):
+    d_prime += 0.001 # make sure distance is greater than 0
     d_prime = min(Params.max_dist, d_prime) # making sure d_prime is not out of simulated range
-    return math.ceil(d_prime / step)*step
+    result = int(math.ceil(d_prime / step)*step)
+    return int(math.ceil(d_prime / step)*step)
 
 """
 Given a set of 'distances', calculate the ratio of distances that are smaller than 'd_threshold'.
 
 """
 def cumulative_prob(distances, d_threshold):
-    return bisect.bisect_left(distances, d_threshold) / len(distances) if distances else 0
+    # print (distances, d_threshold)
+    return float(bisect.bisect_left(distances, d_threshold)) / len(distances) if distances else 0
 
 """
 Compute reachable distance such the coverage probability is greater or equal to a threshold
 """
-def reachableNoisyDist(sortedPairs, coverageThreshold):
-    idx = bisect.bisect_left(list(sortedPairs.values()), coverageThreshold)
+def reachableNoisyDist(sortedPairs, recallThreshold):
+    idx = bisect.bisect_left(list(sortedPairs.values()), recallThreshold)
     return list(sortedPairs.keys())[min(idx, len(sortedPairs) - 1)]
 
 # sortedPairs = [(1,3),(2,5),(3,6),(4,9),(5,9)]

@@ -7,8 +7,8 @@ fig, ax = plt.subplots(1, 1)
 # composed of letters ['mvsk'] specifying which moments to compute where
 # 'm' = mean, 'v' = variance, 's' = (Fisher's) skew and 'k' = (Fisher's) kurtosis.
 # (default='mv')
-b = 1.0
-mean, var, skew, kurt = rice.stats(b, moments='mvsk')
+b = 1000.0
+# mean, var, skew, kurt = rice.stats(b, moments='mvsk')
 # stats(b, loc=0, scale=1, moments='mv')
 # b is a shape parameter = (v^2/2*delta^2)
 # scale parameter = v^2 + 2*delta^2

@@ -15,8 +15,8 @@ class Params(object):
     ONE_KM = 0.0089982311916  # convert km to degree
     step = 100  # step of d_prime range
     max_dist = 11900 # max distance used in simulation
-    reachableDistStep = 100.0
-    reachableDistRange = (100.0, 12000.0)
+    reachableDistStep = 50.0
+    reachableDistRange = (1000.0, 3000.0)
     def __init__(self, seed):
         self.workerFile = ""
         self.taskFile = ""
@@ -38,8 +38,8 @@ class Params(object):
         """
         Heuristic parameters
         """
-        self.acceptanceThreshold = 0.4
-        self.coverageThreshold = 0.90
+        self.reachabilityThresholdU2U = 0.1
+        self.reachabilityThresholdU2E = 0.3
 
         """
         Parameters of elastric metric (not used)

@@ -1,15 +1,12 @@
 import math
 import random
-import csv
 import numpy as np
 import Utils
 from Differential import Differential
 from Params import Params
 from collections import defaultdict, OrderedDict
-import pprint
 import bisect
-# import matplotlib.pyplot as plt
-#
+
 random.seed(1000)
 def dist(x, y):
     return math.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2)
@@ -100,7 +97,7 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
     # print ("\n".join(map(str, d_prime_range_to_d_values[1000.0])))
 
     """
-    Given worker-task distance in the perturbed domain d'=dist(w’,t'),
+    Given worker-task distance in the perturbed domain d'=dist(w',t'),
     compute the reachable probability in the actual domain: P_reachable = Pr(dist(w, t) < d_reachable).
     """
     reachable_prob = defaultdict(list)
@@ -109,10 +106,10 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
         d_values = d_prime_range_to_d_values[d_prime_range] # actual d_values that has noisy distance in a certain range.
         d_values.sort() # Sort values in map
         for reachable_dist in reachable_range:
-            reachable_prob[reachable_dist].append((d_prime, Utils.cumulative_prob(d_values, reachable_dist)))
-
+            cum_prob = Utils.cumulative_prob(d_values, reachable_dist)
+            reachable_prob[reachable_dist].append((d_prime, cum_prob))
     """
-    Compute the upper-bound matching distance match_dist(w’,t') in the perturbed domain
+    Compute the upper-bound matching distance match_dist(w',t') in the perturbed domain
     (that SC-server would match a worker to a task) such that with high probability
     a reachable pair in the actual domain (dist(w, t) < d_reachable) are matched in the noisy domain: P_recall.
     """
@@ -125,7 +122,7 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
 
     return reachable_prob, precision_recall_prob
 
-samples = 100000  # sample size
+samples = 500000  # sample size
 d_prime_values = range(100, Params.max_dist + 1, 100) # range of noisy distance
 d_matches_values = range(100, Params.max_dist + 1, 100) # range of matching distance
 def precomputeProbability():
@@ -134,9 +131,10 @@ def precomputeProbability():
     :param eps:
     :return:
     """
-    for radius in [700.0]:
-        for eps in [0.7]:
+    for radius in [100.0, 400.0, 700.0, 1000.0]:
+        for eps in [0.1, 0.4, 0.7, 1.0]:
             print ("radius/eps: ", radius, eps)
+            p.radius, p.eps = radius, eps
             outputFile = Utils.getParameterizedFile(radius, eps)
             with open(outputFile + "_reachability.txt", "w") as f_reachable, \
                     open(outputFile + "_precision_recall.txt", "w") as f_precision_recall:
@@ -156,7 +154,7 @@ def precomputeProbability():
             f_reachable.close()
             f_precision_recall.close()
 
-precomputeProbability()
+# precomputeProbability()
 
 def getProbability(radius_list, eps_list, suffix):
     """

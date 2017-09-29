@@ -1,15 +1,12 @@
 import math
 import random
-import csv
 import numpy as np
 import Utils
 from Differential import Differential
 from Params import Params
 from collections import defaultdict, OrderedDict
-import pprint
 import bisect
-# import matplotlib.pyplot as plt
-#
+
 random.seed(1000)
 def dist(x, y):
     return math.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2)
@@ -99,7 +96,7 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
     # print ("\n".join(map(str, dict[1000.0])))
 
     """
-    Given worker-task distance in the perturbed domain d'=dist(w’,t'),
+    Given worker-task distance in the perturbed domain d'=dist(w',t'),
     compute the probability they are reachable in the actual domain: P_reachable = Pr(dist(w, t) < d_reachable).
     """
     reachable_prob = defaultdict(list)
@@ -111,7 +108,7 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
             reachable_prob[reachable_dist].append((d_prime, Utils.cumulative_prob(distances, reachable_dist)))
 
     """
-    Compute the upper-bound matching distance match_dist(w’,t') in the perturbed domain
+    Compute the upper-bound matching distance match_dist(w',t') in the perturbed domain
     (that SC-server would match a worker to a task) such that with high probability
     a reachable pair in the actual domain (dist(w, t) < d_reachable) are matched in the noisy domain: P_coverage.
     """
@@ -124,7 +121,7 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
 
     return reachable_prob, precision_recall_prob
 
-samples = 100000  # sample size
+samples = 500000  # sample size
 d_prime_values = range(100, Params.max_dist + 1, 100)
 d_matches_values = range(100, Params.max_dist + 1, 100)
 def precomputeProbability():
@@ -135,6 +132,7 @@ def precomputeProbability():
     """
     for radius in [100.0, 400.0, 700.0, 1000.0]:
         for eps in [0.1, 0.4, 0.7, 1.0]:
+            p.radius, p.eps = radius, eps
             print ("radius/eps: ", radius, eps)
             outputFile = Utils.getParameterizedFile(radius, eps)
             with open(outputFile + "_reachability_2.txt", "w") as f_reachable, \
@@ -155,7 +153,7 @@ def precomputeProbability():
             f_reachable.close()
             f_coverage.close()
 
-precomputeProbability()
+# precomputeProbability()
 
 def getProbability(radius_list, eps_list, suffix):
     """
