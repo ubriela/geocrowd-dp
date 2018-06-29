@@ -1,25 +1,24 @@
 from collections import defaultdict
 import math
-import numpy as np
 from Params import Params
 import bisect
-import random
 import numpy as np
 from scipy.stats import rice
 
-"""
-Variance
-"""
-def privacyLossToStandardDeviation(eps, radius):
+#U2U: mean and variance of d^2
+def mean_U2U(eps, radius, observed_distance):
+    return (4 * radius**2) * (2 + observed_distance**2) / (eps**2)
+
+def variance_U2U(eps, radius, observed_distance):
+    return 32 * radius**4 * (1 + observed_distance**2) / (eps**4)
+
+# U2E
+def privacy_loss_2_standard_deviation(eps, radius):
     return np.sqrt(2) * radius/eps
 
-"""
-x = reachable distance
-v = noisy distance
-"""
-def reachable_prob_U2E(x, v, eps, radius):
-    s = privacyLossToStandardDeviation(eps, radius)
-    return rice.cdf(x, v/s, scale=s)
+def reachable_prob_U2E(reachable_distance, observed_distance, eps, radius):
+    sd = privacy_loss_2_standard_deviation(eps, radius)
+    return rice.cdf(reachable_distance, observed_distance / sd, scale=sd)
 
 # for q in np.linspace(100,3000,100):
 #     print (q, reachable_prob(q, 1000, 0.7,  700))
@@ -27,24 +26,24 @@ def reachable_prob_U2E(x, v, eps, radius):
 """
 Return a list of reachable distances, e.g., [1000, 1100,...,5000]
 """
-def reachableDistance():
-    return np.arange(Params.reachableDistRange[0], Params.reachableDistRange[1] + 1, Params.reachableDistStep)
+def reachable_distance():
+    return np.arange(Params.REACHABLE_DIST_RANGE[0], Params.REACHABLE_DIST_RANGE[1] + 1, Params.REACHABLE_DIST_STEP)
 
 """
 Rounding a reachable distance
 """
-def round_reachable_dist(reachable_distance):
-    sorted_distances = reachableDistance()
-    return int(sorted_distances[bisect.bisect_left(sorted_distances, reachable_distance)])
+def round_reachable_dist(reachable_dist):
+    sorted_distances = reachable_distance()
+    return int(sorted_distances[bisect.bisect_left(sorted_distances, reachable_dist)])
 
 """
 Generate uniformly and randomly reachable distance
 """
-def randomReachableDist(reachableDistRange, seed):
+def random_reachable_dist(reachableDistRange, seed):
     np.random.seed(seed)
     return np.random.uniform(reachableDistRange[0], reachableDistRange[1])
 
-def euclideanToRadian(radian):
+def euclidean_2_radian(radian):
     """
     Convert from euclidean scale to radian scale
     :param radian:
@@ -53,7 +52,7 @@ def euclideanToRadian(radian):
     return (radian[0] * Params.ONE_KM * 0.001, radian[1] * Params.ONE_KM * 1.2833 * 0.001)
 
 
-def round2Grid(point, cell_size, x_offset, y_offset):
+def round_2_grid(point, cell_size, x_offset, y_offset):
     """
     Round the coordinates of a point to the points of a grid.
     :param point: The moint to migrate.
@@ -85,7 +84,7 @@ def distance(lat1, lon1, lat2, lon2):
 """
 convert from workerDict to taskDict
 """
-def workerDict2TaskDict(workerDict):
+def worker_dict_2_task_dict(workerDict):
     taskDict = defaultdict(set)
     for wid, taskSet in workerDict.items():
         for tid in taskSet:
@@ -98,7 +97,7 @@ def workerDict2TaskDict(workerDict):
 # print (workerDict2TaskDict(origDict))
 
 # Radix sort for fixed length strings
-def radixSortPassengers(passengers, idx):
+def radix_sort_passengers(passengers, idx):
     """
     Sort passengers in increasing order of time.
     :param passengers: pass
@@ -121,33 +120,34 @@ def radixSortPassengers(passengers, idx):
             del bucket[:]
     return passengers
 
-def RadiusEps2Str(radius, eps):
+def radius_eps_2_str(radius, eps):
     return "r" + str(radius) + "_e" + str(eps)
 
 def getParameterizedFile(radius, eps):
-    return "output/prob/" + RadiusEps2Str(radius, eps)
+    return "output/prob/" + radius_eps_2_str(radius, eps)
 
 """
 Compute range of a distance.
 """
 def dist_range(d_prime, step):
     d_prime += 0.001 # make sure distance is greater than 0
-    d_prime = min(Params.max_dist, d_prime) # making sure d_prime is not out of simulated range
+    d_prime = min(Params.MAX_DIST, d_prime) # making sure d_prime is not out of simulated range
     result = int(math.ceil(d_prime / step)*step)
     return int(math.ceil(d_prime / step)*step)
 
 """
 Given a set of 'distances', calculate the ratio of distances that are smaller than 'd_threshold'.
-
 """
 def cumulative_prob(distances, d_threshold):
     # print (distances, d_threshold)
     return float(bisect.bisect_left(distances, d_threshold)) / len(distances) if distances else 0
 
+# print cumulative_prob(range(1000), 800)
+
 """
 Compute reachable distance such the coverage probability is greater or equal to a threshold
 """
-def reachableNoisyDist(sortedPairs, recallThreshold):
+def reachable_noisy_dist(sortedPairs, recallThreshold):
     idx = bisect.bisect_left(list(sortedPairs.values()), recallThreshold)
     return list(sortedPairs.keys())[min(idx, len(sortedPairs) - 1)]
 

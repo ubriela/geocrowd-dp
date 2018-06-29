@@ -43,7 +43,7 @@ Simulated dataset
 """
 p = Params(1000)
 p.select_dataset()
-reachable_range = Utils.reachableDistance()
+reachable_range = Utils.reachable_distance()
 dp = Differential(p.seed)
 
 # Randomly picking location in a small MBR of tdrive dataset.
@@ -122,15 +122,15 @@ def probs_from_sampling(samples, step, d_prime_values, d_matches_values):
     return reachable_prob, precision_recall_prob
 
 samples = 500000  # sample size
-d_prime_values = range(100, Params.max_dist + 1, 100)
-d_matches_values = range(100, Params.max_dist + 1, 100)
+d_prime_values = range(100, Params.MAX_DIST + 1, 100)
+d_matches_values = range(100, Params.MAX_DIST + 1, 100)
 def precomputeProbability():
     """
     Precompute probability of reachability given epsilon
     :param eps:
     :return:
     """
-    for radius in [100.0, 400.0, 700.0, 1000.0]:
+    for radius in [200.0, 800.0, 1400.0, 2000.0]:
         for eps in [0.1, 0.4, 0.7, 1.0]:
             p.radius, p.eps = radius, eps
             print ("radius/eps: ", radius, eps)
@@ -138,7 +138,7 @@ def precomputeProbability():
             with open(outputFile + "_reachability_2.txt", "w") as f_reachable, \
                     open(outputFile + "_precision_recall_2.txt", "w") as f_coverage:
                 lines = ""
-                reachable_prob, precision_recall_prob = probs_from_sampling(samples, Params.step, d_prime_values, d_matches_values)
+                reachable_prob, precision_recall_prob = probs_from_sampling(samples, Params.STEP, d_prime_values, d_matches_values)
                 for reachable_dist in reachable_range:
                     for d_prime, prob in reachable_prob[reachable_dist]:
                         lines += str(reachable_dist) + "\t" + str(d_prime) + "\t" + str(prob) + "\n"
@@ -167,7 +167,7 @@ def getProbability(radius_list, eps_list, suffix):
         for eps in eps_list:
             inputFile = Utils.getParameterizedFile(radius, eps) + "_" + suffix + ".txt"
             data = np.loadtxt(inputFile, dtype=float, delimiter="\t")
-            dict[Utils.RadiusEps2Str(radius, eps)] = OrderedDict(
+            dict[Utils.radius_eps_2_str(radius, eps)] = OrderedDict(
                 {str(int(kv[0])) + ":" + str(int(kv[1])): kv[2] for kv in data[:, :]})
     return dict
 

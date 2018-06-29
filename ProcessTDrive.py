@@ -1,6 +1,6 @@
 import glob
 import csv
-from Utils import radixSortPassengers
+from Utils import radix_sort_passengers
 
 # compute MBR of dataset
 x_min, y_min, x_max, y_max = 90, 180, -90, -180
@@ -46,7 +46,7 @@ with open("dataset/tdrive/vehicles.txt", "w") as csv_file:
        writer.writerow([loc[0], loc[1], vid])
 
 # sort passengers in decreasing order of time
-passengers = radixSortPassengers(passengers, 2)
+passengers = radix_sort_passengers(passengers, 2)
 
 # write passengers to file
 with open("dataset/tdrive/passengers.txt", "w") as csv_file:

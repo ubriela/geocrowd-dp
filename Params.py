@@ -13,10 +13,10 @@ class Params(object):
     GEOI_GRID_SIZE = 5000
     EARTH_RADIUS = 6378137 # const, in meters
     ONE_KM = 0.0089982311916  # convert km to degree
-    step = 100  # step of d_prime range
-    max_dist = 11900 # max distance used in simulation
-    reachableDistStep = 50.0
-    reachableDistRange = (1000.0, 3000.0)
+    STEP = 100  # step of d_prime range
+    MAX_DIST = 11900 # max distance used in simulation
+    REACHABLE_DIST_STEP = 50.0
+    REACHABLE_DIST_RANGE = (1000.0, 3000.0)
     def __init__(self, seed):
         self.workerFile = ""
         self.taskFile = ""
@@ -26,7 +26,7 @@ class Params(object):
         """
         Privacy parameters
         """
-        self.radius = 700.0  # default unit is meters
+        self.radius = 1400.0  # default unit is meters
         self.eps = 0.7  # epsilon
 
         """
@@ -36,13 +36,17 @@ class Params(object):
         self.taskCount = 500
 
         """
-        Heuristic parameters
+        Heuristic parameters:
+        @reachabilityThresholdU2U: minimum probability of reachability to a task during U2U,
+            used by server to determine the candidate workers
+        @reachabilityThresholdU2E: minimum probability of reachability to a task during U2E,
+            used by requesters to cancel her task to limit task disclosure
         """
         self.reachabilityThresholdU2U = 0.1
-        self.reachabilityThresholdU2E = 0.3
+        self.reachabilityThresholdU2E = 0.4
 
         """
-        Parameters of elastric metric (not used)
+        Parameters of elastic metric (not used)
         """
         self.m = 1000 # granularity of equal-size grid cell
 
